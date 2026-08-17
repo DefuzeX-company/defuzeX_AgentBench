@@ -3,18 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
 from agentbench.adapter import AdapterInvocation
 
-
-class SDKReport(Protocol):
-    """Public SDK report fields consumed by AgentBench."""
-
-    status: str
-    confidence: object
-    issues: tuple[object, ...]
-    evidence_gaps: tuple[object, ...]
+from .protocols import SDKReport
 
 
 @dataclass(frozen=True)

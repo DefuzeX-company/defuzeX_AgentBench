@@ -1,142 +1,20 @@
-"""Start and manage registered benchmark agents without SDK concerns."""
+"""Execute DefuzeX SDK benchmark runs through registered agents."""
 
 from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
 
-from agentbench.adapter import (
-    DEFAULT_ADAPTER_FACTORY,
-    AdapterFactory,
-    AdapterInvocation,
-    AgentAdapter,
-)
-
-from .registry import AgentRegistration
-from .result import BenchmarkResult, BenchmarkStepResult, SDKReport
-
-
-class AgentStartError(RuntimeError):
-    """Raised when a registered agent cannot be loaded."""
-
-
-class AgentNotRunningError(RuntimeError):
-    """Raised when a stopped agent is invoked."""
-
-
-class AgentInvocationError(RuntimeError):
-    """Raised when an Agent fails while processing an SDK Input."""
-
-
-class ProviderSelectionError(RuntimeError):
-    """Raised before Agent startup when no valid SDK Provider mode is available."""
-
-
-class SDKTestInput(Protocol):
-    """Subset of DefuzeXInput required by the Harness."""
-
-    input_id: str
-    payload: object
-
-
-class SDKRun(Protocol):
-    """Strict-handshake subset of defuzex.Run required by the Harness."""
-
-    run_id: str
-    state: str
-    report: SDKReport | None
-    history: tuple[object, ...]
-
-    def get_input(self, *, full: bool = False) -> SDKTestInput | None:
-        ...
-
-    def submit(
-        self,
-        output: object = None,
-        *,
-        status: str = "completed",
-        error: str | None = None,
-    ) -> SDKReport | None:
-        ...
-
-
-class SDKRunFactory(Protocol):
-    """Callable shape of defuzex.create_run used for dependency injection."""
-
-    def __call__(self, **kwargs: object) -> SDKRun:
-        ...
-
-
-@dataclass(slots=True)
-class RunningAgent:
-    """A loaded agent and its framework-neutral invocation handle."""
-
-    registration: AgentRegistration
-    adapter: AgentAdapter
-    _stopped: bool = field(default=False, init=False, repr=False)
-
-    @property
-    def agent_id(self) -> str:
-        return self.registration.agent_id
-
-    @property
-    def adapter_name(self) -> str:
-        return type(self.adapter).__name__
-
-    @property
-    def is_running(self) -> bool:
-        return not self._stopped and self.adapter.is_loaded
-
-    def invoke(
-        self, value: object, *, run_config: object | None = None
-    ) -> AdapterInvocation:
-        if not self.is_running:
-            raise AgentNotRunningError(f"Agent is not running: {self.agent_id}")
-        return self.adapter.invoke(value, run_config=run_config)
-
-    async def ainvoke(
-        self, value: object, *, run_config: object | None = None
-    ) -> AdapterInvocation:
-        if not self.is_running:
-            raise AgentNotRunningError(f"Agent is not running: {self.agent_id}")
-        return await self.adapter.ainvoke(value, run_config=run_config)
-
-    def stop(self) -> None:
-        if self._stopped:
-            return
-        self.adapter.close()
-        self._stopped = True
-
-    def __enter__(self) -> "RunningAgent":
-        return self
-
-    def __exit__(self, *exc_info: object) -> None:
-        self.stop()
-
-
-class AgentRunner:
-    """Create an adapter and load one registered agent."""
-
-    def __init__(
-        self, *, adapter_factory: AdapterFactory = DEFAULT_ADAPTER_FACTORY
-    ) -> None:
-        self._adapter_factory = adapter_factory
-
-    def start(self, agent: AgentRegistration) -> RunningAgent:
-        adapter = self._adapter_factory.create(agent)
-        try:
-            adapter.load()
-        except Exception as exc:
-            adapter.close()
-            raise AgentStartError(f"Failed to start agent {agent.agent_id!r}") from exc
-        return RunningAgent(registration=agent, adapter=adapter)
+from ..errors import AgentInvocationError, ProviderSelectionError
+from ..protocols import SDKReport, SDKRun, SDKRunFactory
+from ..registry import AgentRegistration
+from ..result import BenchmarkResult, BenchmarkStepResult
+from .agent_runner import AgentRunner
 
 
 class BenchmarkRunner:
-    """Drive one DefuzeX SDK Run through a registered Agent."""
+    """Drive one DefuzeX SDK Run through a registered agent."""
 
     def __init__(
         self,
@@ -162,13 +40,7 @@ class BenchmarkRunner:
         track_files: bool = True,
         save_local: bool = False,
     ) -> BenchmarkResult:
-        """Select custom or official SDK Providers, create a Run, and execute it.
-
-        Passing both Providers explicitly selects fully local mode. With no
-        Providers, an API key is required and the SDK selects its official Case
-        and Judge Providers. A partial Provider pair is rejected to avoid an
-        accidental local/official hybrid run.
-        """
+        """Select providers, create an SDK Run, and execute it."""
 
         provider_mode, run_kwargs = self._sdk_run_configuration(
             registration=registration,
@@ -197,7 +69,7 @@ class BenchmarkRunner:
     def run(
         self, registration: AgentRegistration, sdk_run: SDKRun
     ) -> BenchmarkResult:
-        """Execute the SDK's get_input/invoke/submit handshake to completion."""
+        """Execute the SDK get_input/invoke/submit handshake to completion."""
 
         steps: list[BenchmarkStepResult] = []
         report: SDKReport | None = None
@@ -205,8 +77,6 @@ class BenchmarkRunner:
         with self._agent_runner.start(registration) as running:
             adapter_name = running.adapter_name
             while (test_input := sdk_run.get_input(full=True)) is not None:
-                # The SDK's public payload is the Agent input. Input IDs remain
-                # Harness metadata and are retained in BenchmarkStepResult.
                 try:
                     invocation = running.invoke(test_input.payload)
                 except Exception as exc:
@@ -239,7 +109,7 @@ class BenchmarkRunner:
 
     @staticmethod
     def _record_failed_submission(sdk_run: SDKRun, exc: Exception) -> None:
-        """Best-effort recording keeps SDK history truthful on Agent failure."""
+        """Best-effort recording keeps SDK history truthful on agent failure."""
 
         try:
             sdk_run.submit(
@@ -247,7 +117,6 @@ class BenchmarkRunner:
                 error=f"Agent invocation failed: {type(exc).__name__}",
             )
         except Exception:
-            # Preserve the original Agent exception if SDK failure recording also fails.
             pass
 
     def _sdk_run_configuration(
@@ -306,16 +175,13 @@ class BenchmarkRunner:
         return "official", common
 
     def _official_api_key(self, explicit: str | None) -> str | None:
-        """Resolve without logging secrets; the SDK performs format validation."""
+        """Resolve the API key without logging secrets."""
 
-        return (
-            explicit
-            or self._environ.get("DEFUZEX_API_KEY")
-        )
+        return explicit or self._environ.get("DEFUZEX_API_KEY")
 
 
 def _create_defuzex_run(**kwargs: object) -> SDKRun:
-    """Import the SDK lazily so Agent-only Runner usage remains lightweight."""
+    """Import the SDK lazily so agent-only usage remains lightweight."""
 
     try:
         from defuzex import create_run
