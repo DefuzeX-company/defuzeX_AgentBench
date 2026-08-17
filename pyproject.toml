@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "defuzex-agentbench"
+version = "0.1.0"
+description = "Benchmark harness and framework adapters for DefuzeX agents."
+requires-python = ">=3.10"
+dependencies = [
+    "tomli>=2,<3; 
+    python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+langgraph = ["langgraph>=1.0,<2"]
+
+[project.scripts]
+agentbench = "agentbench.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agentbench*"]
+

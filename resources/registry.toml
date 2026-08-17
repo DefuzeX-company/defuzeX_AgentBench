@@ -1,0 +1,9 @@
+schema_version = "defuzex-bench.registry.v1"
+
+[[agents]]
+agent_id = "langgraph-new-project"
+path = "resources/agents/langgraph-new-project"
+enabled = true
+status = "ready"
+framework = "langgraph"
+source = "https://github.com/langchain-ai/new-langgraph-project"
