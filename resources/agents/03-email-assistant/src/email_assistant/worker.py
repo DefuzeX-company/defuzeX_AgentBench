@@ -55,8 +55,20 @@ def _handle(line: str) -> dict[str, object]:
 
 
 def _graph_input(value: object) -> dict[str, object]:
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError("Email assistant text input must not be empty")
+        return {
+            "email_input": {
+                "author": "Benchmark Sender <sender@example.com>",
+                "to": "Lance <lance@langchain.dev>",
+                "subject": "AgentBench synthetic email",
+                "email_thread": value.strip(),
+            }
+        }
+
     if not isinstance(value, Mapping):
-        raise ValueError("Email assistant input must be a JSON object")
+        raise ValueError("Email assistant input must be text or a JSON object")
 
     if "email_input" in value:
         email_input = value["email_input"]

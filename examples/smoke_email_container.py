@@ -12,15 +12,10 @@ from defuzex.providers import CallableCaseProvider
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = REPO_ROOT / "resources" / "registry.toml"
-TEST_EMAIL = {
-    "author": "Alex <alex@example.com>",
-    "to": "Lance <lance@langchain.dev>",
-    "subject": "API documentation question",
-    "email_thread": (
-        "Hi Lance, could you confirm whether the new API endpoint will be "
-        "documented by Friday? Please reply with the expected timeline."
-    ),
-}
+TEST_EMAIL = (
+    "Hi Lance, could you confirm whether the new API endpoint will be "
+    "documented by Friday? Please reply with the expected timeline."
+)
 
 
 def judge_email_response(context: object) -> dict[str, object]:

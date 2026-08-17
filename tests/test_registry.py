@@ -17,6 +17,12 @@ def test_find_langgraph_new_project() -> None:
     assert agent.path == (
         REPO_ROOT / "resources" / "agents" / "01-langgraph-new-project"
     )
+    assert agent.requirement_path == (
+        REPO_ROOT
+        / "resources"
+        / "requirements"
+        / "langgraph-new-project.md"
+    )
 
 
 def test_find_langgraph_chat_agent() -> None:
@@ -43,3 +49,14 @@ def test_find_email_assistant() -> None:
         REPO_ROOT / "resources" / "agents" / "03-email-assistant"
     )
     assert agent.path.joinpath("agent.toml").is_file()
+
+
+def test_every_enabled_agent_has_an_sdk_requirement() -> None:
+    registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
+
+    for agent in registry.enabled():
+        requirement = (
+            REPO_ROOT / "resources" / "requirements" / f"{agent.agent_id}.md"
+        )
+        assert requirement.is_file(), f"Missing SDK requirement: {requirement}"
+        assert agent.requirement_path == requirement

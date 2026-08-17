@@ -22,6 +22,7 @@ class AgentRegistration:
     status: str
     framework: str
     source: str
+    requirement_path: Path | None = None
 
 
 class AgentRegistry:
@@ -82,6 +83,14 @@ def _parse_agent(item: dict[str, object], repo_root: Path) -> AgentRegistration:
     if manifest.get("agent_id") != agent_id:
         raise ValueError(f"Registry and manifest agent_id differ for {agent_id}")
 
+    requirement_path = (
+        repo_root / "resources" / "requirements" / f"{agent_id}.md"
+    ).resolve()
+    if not requirement_path.is_file():
+        raise FileNotFoundError(
+            f"Agent requirement does not exist: {requirement_path}"
+        )
+
     return AgentRegistration(
         agent_id=agent_id,
         path=agent_path,
@@ -89,6 +98,7 @@ def _parse_agent(item: dict[str, object], repo_root: Path) -> AgentRegistration:
         status=str(item.get("status", "unknown")),
         framework=_required_string(item, "framework"),
         source=str(item.get("source", "")),
+        requirement_path=requirement_path,
     )
 
 

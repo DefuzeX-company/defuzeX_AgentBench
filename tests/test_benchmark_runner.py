@@ -97,7 +97,6 @@ def test_official_mode_uses_standard_environment_key_and_sdk_judge() -> None:
 
     result = runner.run_defuzex(
         registered_agent(),
-        requirement_path="requirement.md",
         allow_local=True,
         track_files=False,
     )
@@ -105,8 +104,29 @@ def test_official_mode_uses_standard_environment_key_and_sdk_judge() -> None:
     assert result.provider_mode == "official"
     assert factory.kwargs is not None
     assert factory.kwargs["api_key"] == "dfx_test"
+    assert factory.kwargs["requirement_path"] == (
+        REPO_ROOT / "resources" / "requirements" / "langgraph-new-project.md"
+    )
     assert "case_provider" not in factory.kwargs
     assert "judge_provider" not in factory.kwargs
+
+
+def test_explicit_requirement_path_overrides_registered_default() -> None:
+    factory = CapturingRunFactory()
+    runner = BenchmarkRunner(
+        sdk_run_factory=factory,
+        environ={"DEFUZEX_API_KEY": "dfx_test"},
+    )
+
+    runner.run_defuzex(
+        registered_agent(),
+        requirement_path="override-requirement.md",
+        allow_local=True,
+        track_files=False,
+    )
+
+    assert factory.kwargs is not None
+    assert factory.kwargs["requirement_path"] == "override-requirement.md"
 
 
 def test_explicit_provider_pair_selects_local_mode() -> None:
@@ -132,6 +152,7 @@ def test_explicit_provider_pair_selects_local_mode() -> None:
     assert factory.kwargs["case_provider"] is case_provider
     assert factory.kwargs["judge_provider"] is judge_provider
     assert "api_key" not in factory.kwargs
+    assert "requirement_path" not in factory.kwargs
 
 
 def test_missing_key_and_providers_stops_before_run_creation() -> None:

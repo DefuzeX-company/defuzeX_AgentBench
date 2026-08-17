@@ -171,7 +171,9 @@ container. The container communicates over persistent JSONL stdin/stdout and
 uses the trusted Model Gateway for OpenAI requests; the real `OPENAI_API_KEY`
 is never injected into the Agent container.
 
-The benchmark input is either an `email_input` object or these four fields at
+Official DefuzeX Cases provide plain text containing the incoming email body.
+The Worker supplies synthetic sender, recipient, and subject metadata. Local
+custom Cases may instead provide an `email_input` object or these four fields at
 the top level:
 
 ```json

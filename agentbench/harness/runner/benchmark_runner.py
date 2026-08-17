@@ -149,10 +149,9 @@ class BenchmarkRunner:
             "track_files": track_files,
             "save_local": save_local,
         }
-        if requirement_path is not None:
-            common["requirement_path"] = requirement_path
-
         if has_case_provider and has_judge_provider:
+            if requirement_path is not None:
+                common["requirement_path"] = requirement_path
             if max_inputs is None:
                 raise ProviderSelectionError(
                     "Local custom Providers require max_inputs"
@@ -171,10 +170,13 @@ class BenchmarkRunner:
                 "DEFUZEX_API_KEY or provide both case_provider and "
                 "judge_provider."
             )
-        if requirement_path is None:
+        resolved_requirement = requirement_path or registration.requirement_path
+        if resolved_requirement is None:
             raise ProviderSelectionError(
-                "Official DefuzeX Providers require requirement_path"
+                "Official DefuzeX Providers require a registered or explicit "
+                "requirement_path"
             )
+        common["requirement_path"] = resolved_requirement
         common["api_key"] = resolved_key
         return "official", common
 

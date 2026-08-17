@@ -258,6 +258,9 @@ Registry rules:
 - Use `adapting` until the full benchmark passes, then change it to `ready`.
 - Supported status values are `planned`, `adapting`, `ready`, and `blocked`.
 - `framework` must currently be `langgraph`.
+- The Registry derives the SDK requirement as
+  `resources/requirements/<agent_id>.md`; do not add a separate path field or
+  Agent-specific lookup branch.
 
 Verify discovery:
 
@@ -517,7 +520,121 @@ Test both properties for stateful Agents:
 - Two inputs in one Run share the expected conversation history.
 - Separate Runs do not share state.
 
-## 11. Add Tests
+## 11. Create the SDK Requirement File
+
+Every Agent that uses the official DefuzeX Case Provider needs an explicit
+requirement file. Store the repository defaults under:
+
+```text
+resources/requirements/<agent-id>.md
+```
+
+The requirement is a UTF-8 Markdown file with YAML front matter and three
+required, non-empty level-two sections:
+
+```markdown
+---
+agent_description: "A concise description of the Agent under test."
+input_type: text
+---
+
+## Production Use Scenario
+
+Describe where and why the Agent is used.
+
+## Behaviors to Test
+
+Describe observable behavior that generated Cases should exercise.
+
+## Known Limitations or Prohibited Behaviors
+
+Describe unsupported capabilities, forbidden side effects, and safety limits.
+```
+
+### Front matter rules
+
+The SDK accepts only these front matter fields:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `agent_description` | Yes | Non-empty Agent summary sent to the official Case service. |
+| `input_type` | Yes | `text` or `structured`. |
+| `input_schema` | Structured only | Relative path to a local JSON Schema file. |
+
+Unknown front matter fields are rejected. The file must start with `---`, close
+the front matter with another `---`, and contain all three exact English
+headings shown above. The SDK also recognizes its documented Chinese heading
+aliases, but AgentBench requirement files should use English.
+
+The official Case Provider currently generates `text` Inputs only. Therefore,
+all requirement files intended for official Case generation must declare:
+
+```yaml
+input_type: text
+```
+
+If an Agent natively expects an object, its Worker must define a safe and
+documented text-to-state mapping. The email Agent, for example, wraps official
+text as a synthetic incoming email before invoking its Graph.
+
+`structured` requirements are available only to custom Case Providers. They
+must declare either `input_schema` in front matter or an `## Input Schema`
+section containing a JSON code block. Schema `$ref` values may be internal only;
+the SDK never retrieves external schemas.
+
+### Content and privacy limits
+
+For official Case generation:
+
+- `agent_description` is limited to 2,000 characters.
+- Each required behavior section is limited to 4,000 characters and 8 KiB.
+- The combined structured behavior specification is limited to 16 KiB.
+- Do not include credentials, tokens, private user data, or hidden rubrics.
+- Describe observable behavior, not implementation-specific chain of thought.
+
+The official Provider sends the validated Agent description, the three behavior
+sections, and restricted repository metadata. It does not need a private rubric
+inside the local requirement file.
+
+### Validate requirements locally
+
+Validate all repository requirements before contacting the official service:
+
+```powershell
+..\langgraphTutorial\.venv\Scripts\python.exe -B -c `
+  "from pathlib import Path; from defuzex.requirements import parse_requirement; [parse_requirement(path) for path in Path('resources/requirements').glob('*.md')]; print('Requirements valid')"
+```
+
+Parsing is offline and fails on malformed front matter, missing sections,
+unsupported input types, missing schemas, invalid JSON Schema, and unsafe
+external `$ref` values.
+
+### Requirement lookup
+
+`AgentRegistry` derives the requirement path from the stable Agent ID:
+
+```python
+registration.requirement_path
+# <repo>/resources/requirements/<agent_id>.md
+```
+
+Normal official runs do not pass a path manually:
+
+```python
+result = BenchmarkRunner().run_defuzex(
+    registration,
+    track_files=False,
+)
+```
+
+`BenchmarkRunner` automatically forwards `registration.requirement_path` to the
+SDK. An explicit `requirement_path=` remains available only as an override for
+temporary experiments and tests.
+
+Use one requirement per Agent. Chat, deterministic starter, and email behavior
+have different contracts and must not share a generic requirement.
+
+## 12. Add Tests
 
 ### Registry test
 
@@ -570,7 +687,7 @@ cd C:\Song_startup\benchmark\defuzeX_AgentBench
 ..\langgraphTutorial\.venv\Scripts\python.exe -m pytest -q
 ```
 
-## 12. Run Through the DefuzeX SDK
+## 13. Run Through the DefuzeX SDK
 
 ### Local Provider mode
 
@@ -601,7 +718,6 @@ Do not pass custom Providers:
 ```python
 result = BenchmarkRunner().run_defuzex(
     registration,
-    requirement_path="requirements/my-agent.md",
     track_files=False,
 )
 ```
@@ -609,13 +725,13 @@ result = BenchmarkRunner().run_defuzex(
 Requirements:
 
 - `DEFUZEX_API_KEY` is available, or `api_key=` is passed explicitly.
-- `requirement_path` identifies a valid benchmark requirement.
+- `resources/requirements/<agent_id>.md` exists and is valid.
 - The SDK selects the official Case and Judge Providers.
 
 If neither an official key nor a complete local Provider pair is configured,
 BenchmarkRunner stops before starting the Agent.
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 ### Registry detects the Agent, but startup fails
 
@@ -668,7 +784,7 @@ LangChain objects or credentials.
 Treat this as a Runtime cleanup defect. `close()` and exception paths must remove
 the Agent container, Gateway container, temporary networks, and secret files.
 
-## 14. Email Assistant Integration Lessons
+## 15. Email Assistant Integration Lessons
 
 `03-email-assistant` was the first Docker Agent with structured input and
 tool-oriented output. Its integration exposed several reusable issues:
@@ -697,7 +813,7 @@ Run it from the repository root:
   .\examples\smoke_email_container.py
 ```
 
-## 15. Definition of Done
+## 16. Definition of Done
 
 Before changing Registry status to `ready`, verify every item:
 
@@ -707,6 +823,7 @@ Before changing Registry status to `ready`, verify every item:
 - [ ] Numeric directory prefix is not part of the Agent ID.
 - [ ] No nested `.git`, `.venv`, real `.env`, credential, cache, or user data is committed.
 - [ ] Source URL, fixed revision or snapshot, and license are recorded.
+- [ ] `resources/requirements/<agent-id>.md` passes the DefuzeX SDK parser.
 - [ ] README documents setup, selected Graph, input, output, keys, and run command.
 - [ ] Dockerfile builds from a restricted context and runs as non-root.
 - [ ] Persistent JSONL worker validates input and normalizes output.
