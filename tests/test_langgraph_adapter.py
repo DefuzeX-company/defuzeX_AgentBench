@@ -4,7 +4,7 @@ from agentbench.adapter.langgraph import LangGraphAdapter, LangGraphAdapterConfi
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AGENT_ROOT = REPO_ROOT / "resources" / "agents" / "langgraph-new-project"
+AGENT_ROOT = REPO_ROOT / "resources" / "agents" / "01-langgraph-new-project"
 
 
 def test_config_resolves_official_langgraph_entrypoint() -> None:

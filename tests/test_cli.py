@@ -5,12 +5,14 @@ from agentbench.harness import load_registry
 def test_cli_detects_agent_and_confirms() -> None:
     """Check CLI prints agents and accepts confirm."""
     output: list[str] = []
+    agents = load_registry(DEFAULT_REGISTRY_PATH).enabled()
 
     exit_code = main(input_fn=lambda _: "confirm", output_fn=output.append)
 
     assert exit_code == 0
-    assert any("langgraph-new-project" in line for line in output)
-    assert output[-1] == "Confirmed. 1 benchmark agent(s) selected."
+    for agent in agents:
+        assert any(agent.agent_id in line for line in output)
+    assert output[-1] == f"Confirmed. {len(agents)} benchmark agent(s) selected."
 
 
 def test_cli_can_cancel() -> None:

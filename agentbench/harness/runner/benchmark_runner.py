@@ -73,12 +73,16 @@ class BenchmarkRunner:
 
         steps: list[BenchmarkStepResult] = []
         report: SDKReport | None = None
+        run_config = {"configurable": {"thread_id": sdk_run.run_id}}
 
         with self._agent_runner.start(registration) as running:
             adapter_name = running.adapter_name
             while (test_input := sdk_run.get_input(full=True)) is not None:
                 try:
-                    invocation = running.invoke(test_input.payload)
+                    invocation = running.invoke(
+                        test_input.payload,
+                        run_config=run_config,
+                    )
                 except Exception as exc:
                     self._record_failed_submission(sdk_run, exc)
                     raise AgentInvocationError(

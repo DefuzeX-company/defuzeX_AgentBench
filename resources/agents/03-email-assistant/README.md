@@ -164,6 +164,36 @@ python tests/test_notebooks.py
 pytest tests/test_notebooks.py -v
 ```
 
+## DefuzeX AgentBench Integration
+
+AgentBench runs the basic `email_assistant` graph in a restricted Docker
+container. The container communicates over persistent JSONL stdin/stdout and
+uses the trusted Model Gateway for OpenAI requests; the real `OPENAI_API_KEY`
+is never injected into the Agent container.
+
+The benchmark input is either an `email_input` object or these four fields at
+the top level:
+
+```json
+{
+  "author": "Alex <alex@example.com>",
+  "to": "Lance <lance@langchain.dev>",
+  "subject": "API documentation question",
+  "email_thread": "Could you confirm the expected timeline?"
+}
+```
+
+The public result contains the triage classification and normalized tool
+actions. From the workspace root, run:
+
+```powershell
+.\langgraphTutorial\.venv\Scripts\python.exe -B `
+  .\test_agentbench\smoke_email_container.py
+```
+
+`OPENAI_API_KEY` must be available in the launching terminal. The benchmark
+uses mock email and calendar tools; it does not access a real Gmail account.
+
 ## Future Extensions
 
 Add [LangMem](https://langchain-ai.github.io/langmem/) to manage memories:

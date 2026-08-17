@@ -60,3 +60,4 @@ htmlcov/
 .env.test.local
 .env.production.local
 .langgraph_api
+/.defuzex/

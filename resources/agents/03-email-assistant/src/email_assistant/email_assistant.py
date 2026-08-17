@@ -1,3 +1,4 @@
+import os
 from typing import Literal
 
 from langchain.chat_models import init_chat_model
@@ -17,12 +18,15 @@ load_dotenv(".env")
 tools = get_tools()
 tools_by_name = get_tools_by_name(tools)
 
+# Keep model selection aligned with the AgentBench model binding.
+model_name = os.environ.get("OPENAI_MODEL", "gpt-4.1")
+
 # Initialize the LLM for use with router / structured output
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
+llm = init_chat_model(model_name, model_provider="openai", temperature=0.0)
 llm_router = llm.with_structured_output(RouterSchema) 
 
 # Initialize the LLM, enforcing tool use (of any available tools) for agent
-llm = init_chat_model("openai:gpt-4.1", temperature=0.0)
+llm = init_chat_model(model_name, model_provider="openai", temperature=0.0)
 llm_with_tools = llm.bind_tools(tools, tool_choice="any")
 
 # Nodes

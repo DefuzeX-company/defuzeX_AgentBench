@@ -1,0 +1,45 @@
+schema_version = "defuzex-bench.agent.v1"
+agent_id = "langgraph-chat-agent"
+display_name = "Minimal LangGraph Chat Agent"
+framework = "langgraph"
+
+[source]
+url = "https://docs.langchain.com/oss/python/langgraph/add-memory"
+revision = "2026-08-17"
+license = "MIT"
+
+[build]
+context = "."
+dockerfile = "Dockerfile"
+
+[launch]
+argv = ["python", "-m", "chat_agent.worker"]
+input_mode = "jsonl"
+output_format = "jsonl"
+workdir = "/opt/agent"
+
+[runtime]
+type = "docker"
+timeout_sec = 60
+env_keys = []
+secret_env_keys = []
+
+[model]
+provider = "openai"
+protocol = "openai"
+model = "gpt-4.1-mini"
+upstream_base_url = "https://api.openai.com"
+upstream_base_url_env = "OPENAI_BASE_URL"
+credential_env = "OPENAI_API_KEY"
+base_url_env = "OPENAI_BASE_URL"
+api_key_env = "OPENAI_API_KEY"
+model_env = "OPENAI_MODEL"
+gateway_path = "/v1"
+
+[adapter]
+type = "langgraph"
+mode = "in_process"
+config = "langgraph.json"
+graph_id = "chat_agent"
+input_key = "prompt"
+output_key = "response"

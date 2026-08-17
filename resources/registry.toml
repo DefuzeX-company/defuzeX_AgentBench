@@ -2,8 +2,24 @@ schema_version = "defuzex-bench.registry.v1"
 
 [[agents]]
 agent_id = "langgraph-new-project"
-path = "resources/agents/langgraph-new-project"
+path = "resources/agents/01-langgraph-new-project"
 enabled = true
 status = "ready"
 framework = "langgraph"
 source = "https://github.com/langchain-ai/new-langgraph-project"
+
+[[agents]]
+agent_id = "langgraph-chat-agent"
+path = "resources/agents/02-langgraph-chat-agent"
+enabled = true
+status = "ready"
+framework = "langgraph"
+source = "https://docs.langchain.com/oss/python/langgraph/add-memory"
+
+[[agents]]
+agent_id = "email-assistant"
+path = "resources/agents/03-email-assistant"
+enabled = true
+status = "ready"
+framework = "langgraph"
+source = "https://github.com/langchain-ai/agents-from-scratch"
