@@ -1,4 +1,4 @@
-"""Trusted model gateway that keeps upstream credentials out of agent containers."""
+"""HTTP gateway that keeps upstream credentials out of Agent containers."""
 
 from __future__ import annotations
 
@@ -9,11 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
-from .api_protocols import (
-    GatewayAuthenticationError,
-    GatewayProtocol,
-    get_protocol,
-)
+from .protocols import GatewayAuthenticationError, GatewayProtocol, get_protocol
 
 
 MAX_REQUEST_BYTES = 16 * 1024 * 1024

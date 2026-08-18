@@ -14,6 +14,12 @@ resources/registry.toml
 AgentRegistry discovers AgentRegistration
         |
         v
+CLI prints enabled Agents and requires confirm or cancel
+        |
+        v
+SuiteRunner executes the selected Agents sequentially
+        |
+        v
 RuntimeFactory selects the execution backend
         |
         v
@@ -463,6 +469,23 @@ A declaration such as `packages = ["my_agent"]` may omit
 
 ## 9. Configure the Model Gateway
 
+AgentBench has three separate dependency and trust boundaries:
+
+```text
+Host Harness
+    `-- DefuzeX SDK creates Cases and Judges submissions
+
+Agent container
+    `-- Agent framework and Agent-owned dependencies
+
+Standalone Model Gateway
+    `-- Provider authentication and HTTP forwarding only
+```
+
+The DefuzeX SDK is a Host dependency. It must not be installed in the Agent
+container or copied into the Model Gateway image. Likewise, Agent frameworks
+such as LangGraph belong to Agent images and are not Gateway dependencies.
+
 The Agent container has no public network access. Model traffic follows this
 path:
 
@@ -503,6 +526,40 @@ Never print the values.
 
 `DEFUZEX_API_KEY` is for official DefuzeX Case and Judge Providers. Model keys
 such as `OPENAI_API_KEY` are for the Model Gateway. They are independent.
+
+### Standalone Gateway deployment
+
+The trusted Gateway is an independent Python project under
+`services/model-gateway`. Its `pyproject.toml`, source tree, Dockerfile, and
+Docker build context are isolated from the root AgentBench package. Adding a
+Host dependency to AgentBench must therefore never change the Gateway image or
+make the Gateway install that dependency.
+
+In a source checkout, `LocalGatewayImageProvider` builds that standalone
+service. A packaged or production deployment can provide an immutable image:
+
+```powershell
+$env:DEFUZEX_MODEL_GATEWAY_IMAGE = "registry.example/model-gateway:1.2.3"
+```
+
+`DockerRuntime` depends only on the `GatewayImageProvider` contract. Do not add
+repository paths, SDK installation rules, or provider-specific image selection
+to `DockerRuntime`.
+
+### Adding another model protocol
+
+Provider protocols are trusted Gateway extensions, not Agent dependencies.
+Implement the Gateway protocol contract and register it through the
+`defuzex.model_gateway.protocols` Python entry-point group. A protocol must:
+
+- validate the temporary per-run credential received from the Agent;
+- replace it with the real upstream credential;
+- preserve a safe relative request path and approved headers;
+- avoid logging either credential; and
+- include authentication, forwarding, and failure tests.
+
+Only reviewed protocol packages may be installed in the trusted Gateway image.
+An Agent manifest cannot install arbitrary Gateway plugins.
 
 ## 10. Conversation State
 
@@ -688,6 +745,79 @@ cd C:\Song_startup\benchmark\defuzeX_AgentBench
 ```
 
 ## 13. Run Through the DefuzeX SDK
+
+### Batch suite entry point
+
+The installed `agentbench` command is the normal batch entry point:
+
+```powershell
+agentbench
+```
+
+It performs the following steps:
+
+1. Load all enabled registrations from `resources/registry.toml`.
+2. Print the detected Agents and require `confirm` or `cancel`.
+3. Pass the confirmed registrations to `SuiteRunner`.
+4. Run one `BenchmarkRunner` execution per Agent in Registry order.
+5. Print each result and a final passed, failed, skipped, and selected summary.
+6. Return exit code `0` only when every selected benchmark passes.
+
+Progress output reflects real Harness boundaries:
+
+```text
+Checking DefuzeX SDK configuration...
+  OK | Provider mode: official
+
+------------------------------------------------------------------------------
+Running: [1/3] langgraph-new-project
+Starting Agent...
+  OK | LangGraphAdapter
+Generating Case from DefuzeX Server...
+  OK | run=<sdk-run-id>
+Running Agent inputs and DefuzeX Judge...
+  OK | Judge: pass
+```
+
+`OK` is green and `FAILED` is red in an ANSI-capable terminal. SDK preflight
+checks package availability, Provider selection, requirement resolution, and
+official Key format without contacting the Server. Agent startup happens
+before remote Case generation. Therefore, a long pause after the Case message
+means the SDK is waiting on the official Server, while a long pause after the
+Agent message means the runtime is loading or building the Agent.
+
+CLI animation timing, separator width, and ANSI colors are centralized in
+`agentbench/cli/constants.py`. Keep presentation delays in the CLI; Harness and
+Runner code must never sleep for visual effects.
+
+`SuiteRunner` continues after an individual Agent startup, invocation, or Judge
+failure by default, so one broken Agent does not hide the remaining results.
+Set `continue_on_error=False` for fail-fast execution. Shared Provider
+configuration errors are always raised immediately because retrying the same
+invalid configuration for every Agent cannot succeed.
+
+The CLI uses the trusted host process for DefuzeX SDK orchestration and passes
+`allow_local=True` to that SDK Run. This does not run untrusted Agent code on
+the host: model-backed Agents still execute through AgentBench DockerRuntime,
+and their provider credentials remain in the Model Gateway.
+
+Programmatic batch execution uses the same Runner:
+
+```python
+registry = load_registry("resources/registry.toml")
+result = SuiteRunner().run_defuzex(
+    registry.enabled(),
+    allow_local=True,
+    track_files=False,
+)
+
+if not result.passed:
+    raise RuntimeError("At least one Agent benchmark failed")
+```
+
+Do not implement Agent iteration in the CLI or inside `BenchmarkRunner`.
+`SuiteRunner` owns suite ordering and aggregation, `BenchmarkRunner` owns one
+SDK handshake, and `AgentRunner` owns one Agent lifecycle.
 
 ### Local Provider mode
 

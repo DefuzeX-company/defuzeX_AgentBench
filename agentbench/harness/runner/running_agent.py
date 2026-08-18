@@ -22,7 +22,7 @@ class RunningAgent:
 
     registration: AgentRegistration
     adapter: AgentAdapter
-    _stopped: bool = field(default=False, init=False, repr=False)
+    _stopped: bool = field(default=False, repr=False)
 
     @property
     def agent_id(self) -> str:

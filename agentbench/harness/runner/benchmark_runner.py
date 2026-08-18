@@ -7,10 +7,12 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from ..errors import AgentInvocationError, ProviderSelectionError
+from ..progress import ProgressCallback, emit_progress
 from ..protocols import SDKReport, SDKRun, SDKRunFactory
 from ..registry import AgentRegistration
 from ..result import BenchmarkResult, BenchmarkStepResult
 from .agent_runner import AgentRunner
+from .running_agent import RunningAgent
 
 
 class BenchmarkRunner:
@@ -39,10 +41,11 @@ class BenchmarkRunner:
         allow_local: bool = False,
         track_files: bool = True,
         save_local: bool = False,
+        on_progress: ProgressCallback | None = None,
     ) -> BenchmarkResult:
-        """Select providers, create an SDK Run, and execute it."""
+        """Start one Agent, create its SDK Run, and execute the handshake."""
 
-        provider_mode, run_kwargs = self._sdk_run_configuration(
+        provider_mode, run_kwargs = self._prepare_defuzex(
             registration=registration,
             requirement_path=requirement_path,
             case_provider=case_provider,
@@ -53,8 +56,88 @@ class BenchmarkRunner:
             track_files=track_files,
             save_local=save_local,
         )
-        sdk_run = self._sdk_run_factory(**run_kwargs)
-        result = self.run(registration, sdk_run)
+
+        emit_progress(
+            on_progress,
+            stage="agent_start",
+            status="started",
+            agent_id=registration.agent_id,
+        )
+        try:
+            running = self._agent_runner.start(registration)
+        except Exception as exc:
+            emit_progress(
+                on_progress,
+                stage="agent_start",
+                status="failed",
+                agent_id=registration.agent_id,
+                detail=_error_detail(exc),
+            )
+            raise
+
+        emit_progress(
+            on_progress,
+            stage="agent_start",
+            status="succeeded",
+            agent_id=registration.agent_id,
+            detail=running.adapter_name,
+        )
+        with running:
+            emit_progress(
+                on_progress,
+                stage="case_generation",
+                status="started",
+                agent_id=registration.agent_id,
+                detail=provider_mode,
+            )
+            try:
+                sdk_run = self._sdk_run_factory(**run_kwargs)
+            except Exception as exc:
+                emit_progress(
+                    on_progress,
+                    stage="case_generation",
+                    status="failed",
+                    agent_id=registration.agent_id,
+                    detail=_error_detail(exc),
+                )
+                raise
+
+            emit_progress(
+                on_progress,
+                stage="case_generation",
+                status="succeeded",
+                agent_id=registration.agent_id,
+                detail=f"run={sdk_run.run_id}",
+            )
+            emit_progress(
+                on_progress,
+                stage="benchmark_execution",
+                status="started",
+                agent_id=registration.agent_id,
+            )
+            try:
+                result = self._run_with_running(registration, sdk_run, running)
+            except Exception as exc:
+                emit_progress(
+                    on_progress,
+                    stage="benchmark_execution",
+                    status="failed",
+                    agent_id=registration.agent_id,
+                    detail=_error_detail(exc),
+                )
+                raise
+
+            judge_status = (
+                result.report.status if result.report is not None else "no report"
+            )
+            emit_progress(
+                on_progress,
+                stage="benchmark_execution",
+                status="succeeded",
+                agent_id=registration.agent_id,
+                detail=f"Judge: {judge_status}",
+            )
+
         return BenchmarkResult(
             agent_id=result.agent_id,
             adapter_name=result.adapter_name,
@@ -71,33 +154,71 @@ class BenchmarkRunner:
     ) -> BenchmarkResult:
         """Execute the SDK get_input/invoke/submit handshake to completion."""
 
+        with self._agent_runner.start(registration) as running:
+            return self._run_with_running(registration, sdk_run, running)
+
+    def validate_defuzex(
+        self,
+        registration: AgentRegistration,
+        *,
+        requirement_path: str | Path | None = None,
+        case_provider: object | None = None,
+        judge_provider: object | None = None,
+        api_key: str | None = None,
+        max_inputs: int | None = None,
+        allow_local: bool = False,
+        track_files: bool = True,
+        save_local: bool = False,
+    ) -> str:
+        """Validate shared SDK and Provider configuration without networking."""
+
+        provider_mode, _ = self._prepare_defuzex(
+            registration=registration,
+            requirement_path=requirement_path,
+            case_provider=case_provider,
+            judge_provider=judge_provider,
+            api_key=api_key,
+            max_inputs=max_inputs,
+            allow_local=allow_local,
+            track_files=track_files,
+            save_local=save_local,
+        )
+        return provider_mode
+
+    def _run_with_running(
+        self,
+        registration: AgentRegistration,
+        sdk_run: SDKRun,
+        running: RunningAgent,
+    ) -> BenchmarkResult:
+        """Execute an SDK handshake through an Agent that is already running."""
+
         steps: list[BenchmarkStepResult] = []
         report: SDKReport | None = None
         run_config = {"configurable": {"thread_id": sdk_run.run_id}}
 
-        with self._agent_runner.start(registration) as running:
-            adapter_name = running.adapter_name
-            while (test_input := sdk_run.get_input(full=True)) is not None:
-                try:
-                    invocation = running.invoke(
-                        test_input.payload,
-                        run_config=run_config,
-                    )
-                except Exception as exc:
-                    self._record_failed_submission(sdk_run, exc)
-                    raise AgentInvocationError(
-                        f"Agent {registration.agent_id!r} failed for "
-                        f"SDK Input {test_input.input_id!r}"
-                    ) from exc
-
-                steps.append(
-                    BenchmarkStepResult(
-                        input_id=test_input.input_id,
-                        payload=test_input.payload,
-                        invocation=invocation,
-                    )
+        adapter_name = running.adapter_name
+        while (test_input := sdk_run.get_input(full=True)) is not None:
+            try:
+                invocation = running.invoke(
+                    test_input.payload,
+                    run_config=run_config,
                 )
-                report = sdk_run.submit(invocation.output)
+            except Exception as exc:
+                self._record_failed_submission(sdk_run, exc)
+                raise AgentInvocationError(
+                    f"Agent {registration.agent_id!r} failed for "
+                    f"SDK Input {test_input.input_id!r}"
+                ) from exc
+
+            steps.append(
+                BenchmarkStepResult(
+                    input_id=test_input.input_id,
+                    payload=test_input.payload,
+                    invocation=invocation,
+                )
+            )
+            report = sdk_run.submit(invocation.output)
 
         if report is None:
             report = sdk_run.report
@@ -110,6 +231,34 @@ class BenchmarkRunner:
             steps=tuple(steps),
             history_count=len(sdk_run.history),
         )
+
+    def _prepare_defuzex(
+        self,
+        *,
+        registration: AgentRegistration,
+        requirement_path: str | Path | None,
+        case_provider: object | None,
+        judge_provider: object | None,
+        api_key: str | None,
+        max_inputs: int | None,
+        allow_local: bool,
+        track_files: bool,
+        save_local: bool,
+    ) -> tuple[str, dict[str, object]]:
+        provider_mode, run_kwargs = self._sdk_run_configuration(
+            registration=registration,
+            requirement_path=requirement_path,
+            case_provider=case_provider,
+            judge_provider=judge_provider,
+            api_key=api_key,
+            max_inputs=max_inputs,
+            allow_local=allow_local,
+            track_files=track_files,
+            save_local=save_local,
+        )
+        if self._sdk_run_factory is _create_defuzex_run:
+            _validate_defuzex_installation(provider_mode, run_kwargs)
+        return provider_mode, run_kwargs
 
     @staticmethod
     def _record_failed_submission(sdk_run: SDKRun, exc: Exception) -> None:
@@ -196,3 +345,25 @@ def _create_defuzex_run(**kwargs: object) -> SDKRun:
             "DefuzeX SDK is not installed in the active Python environment"
         ) from exc
     return create_run(**kwargs)  # type: ignore[arg-type, return-value]
+
+
+def _validate_defuzex_installation(
+    provider_mode: str, run_kwargs: Mapping[str, object]
+) -> None:
+    """Import the SDK and validate official credentials without a request."""
+
+    try:
+        from defuzex import DefuzeClient
+    except ModuleNotFoundError as exc:
+        raise ProviderSelectionError(
+            "DefuzeX SDK is not installed in the active Python environment"
+        ) from exc
+
+    if provider_mode == "official":
+        api_key = run_kwargs.get("api_key")
+        DefuzeClient(api_key=api_key if isinstance(api_key, str) else None)
+
+
+def _error_detail(exc: Exception) -> str:
+    message = str(exc).strip()
+    return type(exc).__name__ if not message else f"{type(exc).__name__}: {message}"

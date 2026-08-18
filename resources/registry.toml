@@ -7,6 +7,7 @@ enabled = true
 status = "ready"
 framework = "langgraph"
 source = "https://github.com/langchain-ai/new-langgraph-project"
+case=3
 
 [[agents]]
 agent_id = "langgraph-chat-agent"
@@ -15,6 +16,7 @@ enabled = true
 status = "ready"
 framework = "langgraph"
 source = "https://docs.langchain.com/oss/python/langgraph/add-memory"
+case=5
 
 [[agents]]
 agent_id = "email-assistant"
@@ -23,3 +25,4 @@ enabled = true
 status = "ready"
 framework = "langgraph"
 source = "https://github.com/langchain-ai/agents-from-scratch"
+case=2

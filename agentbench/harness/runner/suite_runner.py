@@ -1,0 +1,137 @@
+"""
+
+    Run a DefuzeX benchmark suite across registered agents.
+    
+    
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable
+
+from ..errors import ProviderSelectionError, SuiteConfigurationError
+from ..progress import ProgressCallback, emit_progress
+from ..registry import AgentRegistration
+from ..result import BenchmarkSuiteResult, SuiteAgentResult
+from .benchmark_runner import BenchmarkRunner
+
+
+class SuiteRunner:
+    """Sequentially execute one benchmark for every selected Agent."""
+
+    def __init__(self, *, benchmark_runner: BenchmarkRunner | None = None) -> None:
+        self._benchmark_runner = benchmark_runner or BenchmarkRunner()
+
+    def run_defuzex(
+        self,
+        registrations: Iterable[AgentRegistration],
+        *,
+        case_provider: object | None = None,
+        judge_provider: object | None = None,
+        api_key: str | None = None,
+        max_inputs: int | None = None,
+        allow_local: bool = False,
+        track_files: bool = True,
+        save_local: bool = False,
+        continue_on_error: bool = True,
+        on_agent_start: (
+            Callable[[AgentRegistration, int, int], None] | None
+        ) = None,
+        on_agent_complete: Callable[[SuiteAgentResult], None] | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> BenchmarkSuiteResult:
+        """Run selected Agents and retain both reports and execution errors."""
+
+        selected = tuple(registrations)
+        self._validate_selection(selected)
+        items: list[SuiteAgentResult] = []
+
+        emit_progress(
+            on_progress,
+            stage="sdk_check",
+            status="started",
+        )
+        try:
+            provider_mode = self._benchmark_runner.validate_defuzex(
+                selected[0],
+                case_provider=case_provider,
+                judge_provider=judge_provider,
+                api_key=api_key,
+                max_inputs=max_inputs,
+                allow_local=allow_local,
+                track_files=track_files,
+                save_local=save_local,
+            )
+        except Exception as exc:
+            emit_progress(
+                on_progress,
+                stage="sdk_check",
+                status="failed",
+                detail=_error_detail(exc),
+            )
+            raise SuiteConfigurationError(str(exc)) from exc
+        emit_progress(
+            on_progress,
+            stage="sdk_check",
+            status="succeeded",
+            detail=f"Provider mode: {provider_mode}",
+        )
+
+        for index, registration in enumerate(selected, start=1):
+            if on_agent_start is not None:
+                on_agent_start(registration, index, len(selected))
+
+            try:
+                benchmark = self._benchmark_runner.run_defuzex(
+                    registration,
+                    case_provider=case_provider,
+                    judge_provider=judge_provider,
+                    api_key=api_key,
+                    max_inputs=max_inputs,
+                    allow_local=allow_local,
+                    track_files=track_files,
+                    save_local=save_local,
+                    on_progress=on_progress,
+                )
+            except ProviderSelectionError as exc:
+                # Provider selection is shared suite configuration, so retrying
+                # it for every Agent cannot produce a different result.
+                raise SuiteConfigurationError(str(exc)) from exc
+            except Exception as exc:
+                item = SuiteAgentResult(
+                    agent_id=registration.agent_id,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+            else:
+                item = SuiteAgentResult(
+                    agent_id=registration.agent_id,
+                    benchmark=benchmark,
+                )
+
+            items.append(item)
+            if on_agent_complete is not None:
+                on_agent_complete(item)
+            if not item.passed and not continue_on_error:
+                break
+
+        return BenchmarkSuiteResult(
+            selected_agent_ids=tuple(agent.agent_id for agent in selected),
+            items=tuple(items),
+        )
+
+    @staticmethod
+    def _validate_selection(
+        registrations: tuple[AgentRegistration, ...],
+    ) -> None:
+        if not registrations:
+            raise ValueError("A benchmark suite requires at least one Agent")
+
+        agent_ids = tuple(agent.agent_id for agent in registrations)
+        if len(set(agent_ids)) != len(agent_ids):
+            raise ValueError("A benchmark suite cannot contain duplicate Agent IDs")
+
+
+def _error_detail(exc: Exception) -> str:
+    message = str(exc).strip()
+    return type(exc).__name__ if not message else f"{type(exc).__name__}: {message}"

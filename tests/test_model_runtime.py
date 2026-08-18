@@ -1,19 +1,24 @@
 import json
+import sys
 from pathlib import Path
 from types import MappingProxyType
 
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+GATEWAY_SERVICE_SRC = REPO_ROOT / "services" / "model-gateway" / "src"
+sys.path.insert(0, str(GATEWAY_SERVICE_SRC))
+
 from agentbench.adapter import DEFAULT_ADAPTER_FACTORY
 from agentbench.model import ModelBinding, ModelProviderConfig
-from agentbench.model.api_protocols import GatewayAuthenticationError, get_protocol
 from agentbench.runtime.agentcontainer import AgentContainerConfig, ContainerAgentAdapter
 from agentbench.runtime.contracts import EnvironmentSecretResolver
 from agentbench.runtime.docker import DockerPolicy
 from agentbench.runtime.docker.session import _json_compatible
 from agentbench.runtime.factory import RuntimeFactory
 from agentbench.harness import load_registry
+from defuzex_model_gateway.protocols import GatewayAuthenticationError, get_protocol
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 CHAT_AGENT = REPO_ROOT / "resources" / "agents" / "02-langgraph-chat-agent"
 EMAIL_AGENT = REPO_ROOT / "resources" / "agents" / "03-email-assistant"
 

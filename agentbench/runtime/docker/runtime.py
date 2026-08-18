@@ -20,8 +20,9 @@ from agentbench.runtime.contracts import (
     RuntimeSession,
     SecretResolver,
 )
-from agentbench.runtime.modelgateway import RunningModelGateway
+from agentbench.runtime.modelgateway import GatewayImageProvider, RunningModelGateway
 
+from .gateway_image import default_gateway_image_provider
 from .image_builder import DockerImageBuilder
 from .policy import DockerPolicy
 from .session import DockerSession
@@ -40,6 +41,7 @@ class DockerRuntime:
         secret_resolver: SecretResolver | None = None,
         model_provider: ModelProviderConfig | None = None,
         policy: DockerPolicy | None = None,
+        gateway_image_provider: GatewayImageProvider | None = None,
     ) -> None:
         self._executable = executable
         self._environ = os.environ if environ is None else environ
@@ -49,6 +51,10 @@ class DockerRuntime:
         self._model_provider = model_provider
         self._policy = policy or DockerPolicy()
         self._images = DockerImageBuilder(executable)
+        self._gateway_images = gateway_image_provider or default_gateway_image_provider(
+            self._images,
+            self._environ,
+        )
 
     def start(self, agent: AgentDescriptor) -> RuntimeSession:
         self._check_available()
@@ -161,16 +167,7 @@ class DockerRuntime:
         internal_network: str,
         egress_network: str,
     ) -> RunningModelGateway:
-        repo_root = Path(__file__).resolve().parents[3]
-        image = self._images.build(
-            context=repo_root,
-            dockerfile=repo_root / "agentbench" / "model" / "Dockerfile",
-            repository="model-gateway",
-            fingerprint_paths=(
-                repo_root / "pyproject.toml",
-                repo_root / "agentbench",
-            ),
-        )
+        image = self._gateway_images.resolve_image()
         gateway_name = f"defuzex-{suffix}-gateway"
         gateway_token = secrets.token_urlsafe(32)
         secret_dir = Path(tempfile.mkdtemp(prefix="defuzex-model-gateway-"))

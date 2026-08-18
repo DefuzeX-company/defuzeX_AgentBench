@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "defuzex-model-gateway"
+version = "0.1.0"
+description = "Trusted model credential gateway for DefuzeX AgentBench."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+defuzex-model-gateway = "defuzex_model_gateway.server:main"
+
+[project.entry-points."defuzex.model_gateway.protocols"]
+openai = "defuzex_model_gateway.protocols.openai:OPENAI_PROTOCOL"
+anthropic = "defuzex_model_gateway.protocols.anthropic:ANTHROPIC_PROTOCOL"
+google = "defuzex_model_gateway.protocols.google:GOOGLE_PROTOCOL"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["defuzex_model_gateway*"]

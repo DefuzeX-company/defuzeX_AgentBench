@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agentbench.harness import (
+    BenchmarkProgress,
     BenchmarkRunner,
     ProviderSelectionError,
     load_registry,
@@ -67,6 +68,12 @@ class CapturingRunFactory:
         return FakeSDKRun()
 
 
+class FailingRunFactory:
+    def __call__(self, **kwargs: object) -> FakeSDKRun:
+        del kwargs
+        raise RuntimeError("server unavailable")
+
+
 def registered_agent():  # type: ignore[no-untyped-def]
     registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
     return registry.find("langgraph-new-project")
@@ -109,6 +116,61 @@ def test_official_mode_uses_standard_environment_key_and_sdk_judge() -> None:
     )
     assert "case_provider" not in factory.kwargs
     assert "judge_provider" not in factory.kwargs
+
+
+def test_benchmark_runner_emits_real_lifecycle_order() -> None:
+    factory = CapturingRunFactory()
+    events: list[BenchmarkProgress] = []
+    runner = BenchmarkRunner(
+        sdk_run_factory=factory,
+        environ={"DEFUZEX_API_KEY": "dfx_test"},
+    )
+
+    runner.run_defuzex(
+        registered_agent(),
+        allow_local=True,
+        track_files=False,
+        on_progress=events.append,
+    )
+
+    assert [(event.stage, event.status) for event in events] == [
+        ("agent_start", "started"),
+        ("agent_start", "succeeded"),
+        ("case_generation", "started"),
+        ("case_generation", "succeeded"),
+        ("benchmark_execution", "started"),
+        ("benchmark_execution", "succeeded"),
+    ]
+    assert events[2].detail == "official"
+    assert events[-1].detail == "Judge: pass"
+
+
+def test_benchmark_runner_reports_case_generation_failure() -> None:
+    events: list[BenchmarkProgress] = []
+    runner = BenchmarkRunner(
+        sdk_run_factory=FailingRunFactory(),
+        environ={"DEFUZEX_API_KEY": "dfx_test"},
+    )
+
+    try:
+        runner.run_defuzex(
+            registered_agent(),
+            allow_local=True,
+            track_files=False,
+            on_progress=events.append,
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "server unavailable"
+    else:
+        raise AssertionError("BenchmarkRunner swallowed Case generation failure")
+
+    assert [(event.stage, event.status) for event in events] == [
+        ("agent_start", "started"),
+        ("agent_start", "succeeded"),
+        ("case_generation", "started"),
+        ("case_generation", "failed"),
+    ]
+    assert events[-1].detail == "RuntimeError: server unavailable"
 
 
 def test_explicit_requirement_path_overrides_registered_default() -> None:

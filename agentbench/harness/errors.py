@@ -15,3 +15,7 @@ class AgentInvocationError(RuntimeError):
 
 class ProviderSelectionError(RuntimeError):
     """Raised before agent startup when no valid provider mode is available."""
+
+
+class SuiteConfigurationError(RuntimeError):
+    """Raised when shared suite configuration fails preflight validation."""

@@ -1,0 +1,15 @@
+"""Tunable terminal presentation constants for the AgentBench CLI."""
+
+
+LOGO_PAUSE_SECONDS = 2.0
+AGENT_REVEAL_DELAY_SECONDS = 0.3
+AGENT_SEPARATOR_WIDTH = 78
+
+ANSI_RESET = "\033[0m"
+ANSI_BOLD = "\033[1m"
+ANSI_RED = "\033[31m"
+ANSI_GREEN = "\033[32m"
+ANSI_YELLOW = "\033[33m"
+ANSI_BLUE = "\033[34m"
+ANSI_MAGENTA = "\033[35m"
+ANSI_CYAN = "\033[36m"
