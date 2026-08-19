@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from ..errors import AgentInvocationError, ProviderSelectionError
 from ..progress import ProgressCallback, emit_progress
 from ..protocols import SDKReport, SDKRun, SDKRunFactory
 from ..registry import AgentRegistration
-from ..result import BenchmarkResult, BenchmarkStepResult
+from ..result import BenchmarkResult, BenchmarkStepFailure, BenchmarkStepResult
 from .agent_runner import AgentRunner
 from .running_agent import RunningAgent
+
+StepStartCallback = Callable[[str, str, object], None]
+StepCompleteCallback = Callable[[str, BenchmarkStepResult], None]
+StepFailureCallback = Callable[[str, BenchmarkStepFailure], None]
 
 
 class BenchmarkRunner:
@@ -42,6 +46,9 @@ class BenchmarkRunner:
         track_files: bool = True,
         save_local: bool = False,
         on_progress: ProgressCallback | None = None,
+        on_step_start: StepStartCallback | None = None,
+        on_step_complete: StepCompleteCallback | None = None,
+        on_step_failure: StepFailureCallback | None = None,
     ) -> BenchmarkResult:
         """Start one Agent, create its SDK Run, and execute the handshake."""
 
@@ -116,7 +123,14 @@ class BenchmarkRunner:
                 agent_id=registration.agent_id,
             )
             try:
-                result = self._run_with_running(registration, sdk_run, running)
+                result = self._run_with_running(
+                    registration,
+                    sdk_run,
+                    running,
+                    on_step_start=on_step_start,
+                    on_step_complete=on_step_complete,
+                    on_step_failure=on_step_failure,
+                )
             except Exception as exc:
                 emit_progress(
                     on_progress,
@@ -149,9 +163,7 @@ class BenchmarkRunner:
             provider_mode=provider_mode,
         )
 
-    def run(
-        self, registration: AgentRegistration, sdk_run: SDKRun
-    ) -> BenchmarkResult:
+    def run(self, registration: AgentRegistration, sdk_run: SDKRun) -> BenchmarkResult:
         """Execute the SDK get_input/invoke/submit handshake to completion."""
 
         with self._agent_runner.start(registration) as running:
@@ -190,6 +202,10 @@ class BenchmarkRunner:
         registration: AgentRegistration,
         sdk_run: SDKRun,
         running: RunningAgent,
+        *,
+        on_step_start: StepStartCallback | None = None,
+        on_step_complete: StepCompleteCallback | None = None,
+        on_step_failure: StepFailureCallback | None = None,
     ) -> BenchmarkResult:
         """Execute an SDK handshake through an Agent that is already running."""
 
@@ -199,26 +215,53 @@ class BenchmarkRunner:
 
         adapter_name = running.adapter_name
         while (test_input := sdk_run.get_input(full=True)) is not None:
+            if on_step_start is not None:
+                on_step_start(
+                    registration.agent_id,
+                    test_input.input_id,
+                    test_input.payload,
+                )
             try:
                 invocation = running.invoke(
                     test_input.payload,
                     run_config=run_config,
                 )
             except Exception as exc:
+                if on_step_failure is not None:
+                    on_step_failure(
+                        registration.agent_id,
+                        _step_failure(test_input.input_id, test_input.payload, exc),
+                    )
                 self._record_failed_submission(sdk_run, exc)
                 raise AgentInvocationError(
                     f"Agent {registration.agent_id!r} failed for "
                     f"SDK Input {test_input.input_id!r}"
                 ) from exc
 
-            steps.append(
-                BenchmarkStepResult(
-                    input_id=test_input.input_id,
-                    payload=test_input.payload,
-                    invocation=invocation,
-                )
+            step = BenchmarkStepResult(
+                input_id=test_input.input_id,
+                payload=test_input.payload,
+                invocation=invocation,
             )
-            report = sdk_run.submit(invocation.output)
+            try:
+                report = sdk_run.submit(invocation.output)
+            except Exception as exc:
+                if on_step_failure is not None:
+                    on_step_failure(
+                        registration.agent_id,
+                        _step_failure(
+                            test_input.input_id,
+                            test_input.payload,
+                            exc,
+                            output=invocation.output,
+                            raw_output=invocation.raw_output,
+                        ),
+                    )
+                raise
+
+            steps.append(step)
+            if on_step_complete is not None:
+                on_step_complete(registration.agent_id, step)
 
         if report is None:
             report = sdk_run.report
@@ -367,3 +410,21 @@ def _validate_defuzex_installation(
 def _error_detail(exc: Exception) -> str:
     message = str(exc).strip()
     return type(exc).__name__ if not message else f"{type(exc).__name__}: {message}"
+
+
+def _step_failure(
+    input_id: str,
+    payload: object,
+    exc: Exception,
+    *,
+    output: object | None = None,
+    raw_output: object | None = None,
+) -> BenchmarkStepFailure:
+    return BenchmarkStepFailure(
+        input_id=input_id,
+        payload=payload,
+        output=output,
+        raw_output=raw_output,
+        error_type=type(exc).__name__,
+        error_message=str(exc),
+    )

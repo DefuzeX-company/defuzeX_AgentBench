@@ -1,8 +1,8 @@
 """
 
-    Run a DefuzeX benchmark suite across registered agents.
-    
-    
+Run a DefuzeX benchmark suite across registered agents.
+
+
 """
 
 from __future__ import annotations
@@ -13,7 +13,12 @@ from ..errors import ProviderSelectionError, SuiteConfigurationError
 from ..progress import ProgressCallback, emit_progress
 from ..registry import AgentRegistration
 from ..result import BenchmarkSuiteResult, SuiteAgentResult
-from .benchmark_runner import BenchmarkRunner
+from .benchmark_runner import (
+    BenchmarkRunner,
+    StepCompleteCallback,
+    StepFailureCallback,
+    StepStartCallback,
+)
 
 
 class SuiteRunner:
@@ -34,11 +39,12 @@ class SuiteRunner:
         track_files: bool = True,
         save_local: bool = False,
         continue_on_error: bool = True,
-        on_agent_start: (
-            Callable[[AgentRegistration, int, int], None] | None
-        ) = None,
+        on_agent_start: (Callable[[AgentRegistration, int, int], None] | None) = None,
         on_agent_complete: Callable[[SuiteAgentResult], None] | None = None,
         on_progress: ProgressCallback | None = None,
+        on_step_start: StepStartCallback | None = None,
+        on_step_complete: StepCompleteCallback | None = None,
+        on_step_failure: StepFailureCallback | None = None,
     ) -> BenchmarkSuiteResult:
         """Run selected Agents and retain both reports and execution errors."""
 
@@ -92,6 +98,9 @@ class SuiteRunner:
                     track_files=track_files,
                     save_local=save_local,
                     on_progress=on_progress,
+                    on_step_start=on_step_start,
+                    on_step_complete=on_step_complete,
+                    on_step_failure=on_step_failure,
                 )
             except ProviderSelectionError as exc:
                 # Provider selection is shared suite configuration, so retrying

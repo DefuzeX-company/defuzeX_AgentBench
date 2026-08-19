@@ -1,62 +1,39 @@
 from pathlib import Path
 
-from agentbench.harness.registry import load_registry
+import pytest
 
+from agentbench.harness.registry import load_registry
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_find_langgraph_new_project() -> None:
-    """Check registry can find the starter agent."""
+@pytest.mark.parametrize(
+    ("agent_id", "directory"),
+    [
+        ("langgraph-new-project", "01-langgraph-new-project"),
+        ("langgraph-chat-agent", "02-langgraph-chat-agent"),
+        ("email-assistant", "03-email-assistant"),
+    ],
+)
+def test_registry_resolves_enabled_agents(agent_id: str, directory: str) -> None:
     registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
 
-    agent = registry.find("langgraph-new-project")
+    agent = registry.find(agent_id)
 
-    assert agent.agent_id == "langgraph-new-project"
+    assert agent.agent_id == agent_id
     assert agent.framework == "langgraph"
-    assert agent.path == (
-        REPO_ROOT / "resources" / "agents" / "01-langgraph-new-project"
-    )
+    assert agent.status == "ready"
+    assert agent.path == REPO_ROOT / "resources" / "agents" / directory
+    assert agent.path.joinpath("agent.toml").is_file()
     assert agent.requirement_path == (
-        REPO_ROOT
-        / "resources"
-        / "requirements"
-        / "langgraph-new-project.md"
+        REPO_ROOT / "resources" / "requirements" / f"{agent_id}.md"
     )
-
-
-def test_find_langgraph_chat_agent() -> None:
-    registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
-
-    agent = registry.find("langgraph-chat-agent")
-
-    assert agent.framework == "langgraph"
-    assert agent.status == "ready"
-    assert agent.path == (
-        REPO_ROOT / "resources" / "agents" / "02-langgraph-chat-agent"
-    )
-    assert agent.path.joinpath("agent.toml").is_file()
-
-
-def test_find_email_assistant() -> None:
-    registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
-
-    agent = registry.find("email-assistant")
-
-    assert agent.framework == "langgraph"
-    assert agent.status == "ready"
-    assert agent.path == (
-        REPO_ROOT / "resources" / "agents" / "03-email-assistant"
-    )
-    assert agent.path.joinpath("agent.toml").is_file()
 
 
 def test_every_enabled_agent_has_an_sdk_requirement() -> None:
     registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
 
     for agent in registry.enabled():
-        requirement = (
-            REPO_ROOT / "resources" / "requirements" / f"{agent.agent_id}.md"
-        )
+        requirement = REPO_ROOT / "resources" / "requirements" / f"{agent.agent_id}.md"
         assert requirement.is_file(), f"Missing SDK requirement: {requirement}"
         assert agent.requirement_path == requirement

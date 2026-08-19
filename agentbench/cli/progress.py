@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-import time
 from builtins import print as builtin_print
 from collections.abc import Callable
 from threading import Event, Lock, Thread
@@ -83,8 +82,7 @@ class ProgressPrinter:
             dots = DOT_FRAMES[frame_index % len(DOT_FRAMES)]
             with self._render_lock:
                 sys.stdout.write(
-                    f"\r\033[2K  {base_label}{dots} "
-                    f"{ANSI_YELLOW}RUNNING{ANSI_RESET}"
+                    f"\r\033[2K  {base_label}{dots} {ANSI_YELLOW}RUNNING{ANSI_RESET}"
                 )
                 sys.stdout.flush()
             frame_index += 1

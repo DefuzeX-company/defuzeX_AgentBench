@@ -12,6 +12,7 @@ from .protocols import SDKReport, SDKRun, SDKRunFactory, SDKTestInput
 from .registry import AgentRegistration, AgentRegistry, load_registry
 from .result import (
     BenchmarkResult,
+    BenchmarkStepFailure,
     BenchmarkStepResult,
     BenchmarkSuiteResult,
     SuiteAgentResult,
@@ -28,6 +29,7 @@ __all__ = [
     "BenchmarkResult",
     "BenchmarkProgress",
     "BenchmarkRunner",
+    "BenchmarkStepFailure",
     "BenchmarkStepResult",
     "BenchmarkSuiteResult",
     "ProviderSelectionError",

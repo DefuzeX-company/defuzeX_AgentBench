@@ -3,13 +3,10 @@ from pathlib import Path
 from agentbench.adapter.langgraph import LangGraphAdapter, LangGraphAdapterConfig
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-AGENT_ROOT = REPO_ROOT / "resources" / "agents" / "01-langgraph-new-project"
-
-
-def test_config_resolves_official_langgraph_entrypoint() -> None:
+def test_config_resolves_official_langgraph_entrypoint(repo_root: Path) -> None:
     """Check adapter config reads langgraph.json."""
-    config = LangGraphAdapterConfig.from_agent_dir(AGENT_ROOT)
+    agent_root = repo_root / "resources" / "agents" / "01-langgraph-new-project"
+    config = LangGraphAdapterConfig.from_agent_dir(agent_root)
 
     assert config.graph_id == "agent"
     assert config.entrypoint == "./src/agent/graph.py:graph"
@@ -17,9 +14,10 @@ def test_config_resolves_official_langgraph_entrypoint() -> None:
     assert config.output_key == "response"
 
 
-def test_adapter_loads_and_invokes_graph() -> None:
+def test_adapter_loads_and_invokes_graph(repo_root: Path) -> None:
     """Check adapter can run the starter graph."""
-    adapter = LangGraphAdapter.from_agent_dir(AGENT_ROOT)
+    agent_root = repo_root / "resources" / "agents" / "01-langgraph-new-project"
+    adapter = LangGraphAdapter.from_agent_dir(agent_root)
 
     invocation = adapter.invoke("DEFUZEX_AGENT_READY")
 

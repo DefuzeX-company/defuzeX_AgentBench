@@ -1,11 +1,7 @@
+import importlib
+import json
 from dataclasses import dataclass
 
-from agentbench.cli.main import (
-    DEFAULT_REGISTRY_PATH,
-    confirm_agents,
-    main,
-)
-from agentbench.cli.logo import DEFUZE_LOGO
 from agentbench.cli.constants import (
     AGENT_REVEAL_DELAY_SECONDS,
     ANSI_GREEN,
@@ -13,22 +9,25 @@ from agentbench.cli.constants import (
     ANSI_RESET,
     LOGO_PAUSE_SECONDS,
 )
+from agentbench.cli.logo import DEFUZE_LOGO
+from agentbench.cli.main import (
+    cli,
+    confirm_agents,
+    main,
+)
 from agentbench.harness import (
+    AgentRegistration,
     BenchmarkProgress,
-    BenchmarkResult,
     BenchmarkSuiteResult,
     ProviderSelectionError,
     SuiteAgentResult,
-    load_registry,
 )
+from tests.support.results import benchmark_result
 
 
 @dataclass(frozen=True)
-class FakeReport:
-    status: str = "pass"
-    confidence: object = 1.0
-    issues: tuple[object, ...] = ()
-    evidence_gaps: tuple[object, ...] = ()
+class FakeViewer:
+    url: str = "http://127.0.0.1:8765"
 
 
 class FakeSuiteRunner:
@@ -57,9 +56,7 @@ class FakeSuiteRunner:
             if callable(start):
                 start(agent, index, len(selected))
             if callable(progress):
-                progress(
-                    BenchmarkProgress("agent_start", "started", agent.agent_id)
-                )
+                progress(BenchmarkProgress("agent_start", "started", agent.agent_id))
                 progress(
                     BenchmarkProgress(
                         "agent_start",
@@ -68,16 +65,17 @@ class FakeSuiteRunner:
                         "FakeAdapter",
                     )
                 )
-            benchmark = BenchmarkResult(
-                agent_id=agent.agent_id,
-                adapter_name="FakeAdapter",
-                run_id=f"run_{agent.agent_id}",
-                run_state="report_ready",
-                report=FakeReport(),
-                steps=(),
-                history_count=1,
-                provider_mode="official",
-            )
+            benchmark = benchmark_result(agent.agent_id, with_step=True)
+            step_start = kwargs.get("on_step_start")
+            if callable(step_start):
+                step_start(
+                    agent.agent_id,
+                    benchmark.steps[0].input_id,
+                    benchmark.steps[0].payload,
+                )
+            step_complete = kwargs.get("on_step_complete")
+            if callable(step_complete):
+                step_complete(agent.agent_id, benchmark.steps[0])
             item = SuiteAgentResult(agent_id=agent.agent_id, benchmark=benchmark)
             items.append(item)
             complete = kwargs.get("on_agent_complete")
@@ -89,15 +87,17 @@ class FakeSuiteRunner:
         )
 
 
-def test_cli_detects_agent_and_confirms() -> None:
-    """Check CLI prints agents and accepts confirm."""
+def test_cli_detects_agent_and_accepts_yes(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    """Check CLI prints agents and accepts yes."""
     output: list[str] = []
     delays: list[float] = []
-    agents = load_registry(DEFAULT_REGISTRY_PATH).enabled()
+    prompts: list[str] = []
     runner = FakeSuiteRunner()
 
     exit_code = main(
-        input_fn=lambda _: "confirm",
+        input_fn=lambda prompt: prompts.append(prompt) or "y",
         output_fn=output.append,
         suite_runner=runner,  # type: ignore[arg-type]
         sleep_fn=delays.append,
@@ -105,31 +105,32 @@ def test_cli_detects_agent_and_confirms() -> None:
 
     assert exit_code == 0
     assert len(runner.calls) == 1
+    assert prompts == ["Continue? [yes/no]: "]
     assert output[0] == DEFUZE_LOGO
-    for agent in agents:
+    for agent in enabled_agents:
         assert any(agent.agent_id in line for line in output)
     assert any("Running: [1/3] langgraph-new-project" in line for line in output)
     assert any(f"{ANSI_GREEN}OK{ANSI_RESET}" in line for line in output)
     assert output[-1] == (
-        f"\nSuite complete: {len(agents)} passed, 0 failed, 0 skipped, "
-        f"{len(agents)} selected."
+        f"\nSuite complete: {len(enabled_agents)} passed, 0 failed, 0 skipped, "
+        f"{len(enabled_agents)} selected."
     )
     _, kwargs = runner.calls[0]
     assert kwargs["allow_local"] is True
     assert kwargs["track_files"] is False
     assert delays == [
         LOGO_PAUSE_SECONDS,
-        *([AGENT_REVEAL_DELAY_SECONDS] * (len(agents) + 1)),
+        *([AGENT_REVEAL_DELAY_SECONDS] * (len(enabled_agents) + 1)),
     ]
 
 
-def test_cli_can_cancel() -> None:
-    """Check CLI accepts cancel."""
+def test_cli_can_decline() -> None:
+    """Check CLI accepts no."""
     output: list[str] = []
     runner = FakeSuiteRunner()
 
     exit_code = main(
-        input_fn=lambda _: "cancel",
+        input_fn=lambda _: "n",
         output_fn=output.append,
         suite_runner=runner,  # type: ignore[arg-type]
         sleep_fn=lambda _: None,
@@ -140,18 +141,18 @@ def test_cli_can_cancel() -> None:
     assert runner.calls == []
 
 
-def test_confirmation_result_can_gate_execution() -> None:
-    agents = load_registry(DEFAULT_REGISTRY_PATH).enabled()
-
+def test_confirmation_result_can_gate_execution(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
     assert confirm_agents(
-        agents,
-        input_fn=lambda _: "confirm",
+        enabled_agents,
+        input_fn=lambda _: "yes",
         output_fn=lambda _: None,
         sleep_fn=lambda _: None,
     )
     assert not confirm_agents(
-        agents,
-        input_fn=lambda _: "cancel",
+        enabled_agents,
+        input_fn=lambda _: "no",
         output_fn=lambda _: None,
         sleep_fn=lambda _: None,
     )
@@ -159,12 +160,10 @@ def test_confirmation_result_can_gate_execution() -> None:
 
 def test_cli_reports_provider_configuration_error() -> None:
     output: list[str] = []
-    runner = FakeSuiteRunner(
-        error=ProviderSelectionError("DEFUZEX_API_KEY is missing")
-    )
+    runner = FakeSuiteRunner(error=ProviderSelectionError("DEFUZEX_API_KEY is missing"))
 
     exit_code = main(
-        input_fn=lambda _: "confirm",
+        input_fn=lambda _: "yes",
         output_fn=output.append,
         suite_runner=runner,  # type: ignore[arg-type]
         sleep_fn=lambda _: None,
@@ -172,6 +171,93 @@ def test_cli_reports_provider_configuration_error() -> None:
 
     assert exit_code == 1
     assert output[-1] == (
-        f"{ANSI_RED}【Configuration error】 "
-        f"DEFUZEX_API_KEY is missing{ANSI_RESET}"
+        f"{ANSI_RED}【Configuration error】 DEFUZEX_API_KEY is missing{ANSI_RESET}"
     )
+
+
+def test_main_writes_append_only_result_artifact(tmp_path) -> None:
+    output: list[str] = []
+    runner = FakeSuiteRunner()
+    output_path = tmp_path / "result.json"
+    post_run_answers = iter(["r", "q"])
+
+    exit_code = main(
+        input_fn=lambda _: "yes",
+        output_fn=output.append,
+        suite_runner=runner,  # type: ignore[arg-type]
+        sleep_fn=lambda _: None,
+        output_path=output_path,
+        viewer_starter=lambda _: FakeViewer(),  # type: ignore[arg-type]
+        post_run_input_fn=lambda _: next(post_run_answers),
+    )
+
+    artifacts = sorted(tmp_path.glob("result-*.jsonl"))
+    assert len(artifacts) == 2
+    lines = [
+        json.loads(line)
+        for line in artifacts[0].read_text(encoding="utf-8").splitlines()
+    ]
+    assert exit_code == 0
+    assert f"Result artifact started: {artifacts[0]}" in output
+    assert "View: http://127.0.0.1:8765" in output
+    assert any(
+        line.startswith("View: http://127.0.0.1:8765/#agent=") for line in output
+    )
+    assert any(f"Result saved: {artifacts[0]}" in line for line in output)
+    assert any(
+        f"Open later: python -m agentbench view {artifacts[0]}" in line
+        for line in output
+    )
+    assert "Viewer stopped. Rerunning benchmark." in output
+    assert "Viewer stopped." in output
+    assert lines[0]["event"] == "run_started"
+    assert lines[-1]["event"] == "suite_completed"
+    assert any(event["event"] == "step_started" for event in lines)
+    assert any(event["event"] == "step_completed" for event in lines)
+    assert lines[-1]["summary"]["suite_passed"] is True
+
+
+def test_cli_parses_output_argument(monkeypatch, tmp_path) -> None:
+    calls: list[dict[str, object]] = []
+    output_path = tmp_path / "result.json"
+
+    def fake_main(**kwargs):  # type: ignore[no-untyped-def]
+        calls.append(kwargs)
+        return 7
+
+    cli_main_module = importlib.import_module("agentbench.cli.main")
+    monkeypatch.setattr(cli_main_module, "main", fake_main)
+
+    assert cli(["--output", str(output_path)]) == 7
+    assert calls == [{"output_path": str(output_path)}]
+
+
+def test_cli_dispatches_view_command(monkeypatch, tmp_path) -> None:
+    calls: list[list[str]] = []
+    result_log = tmp_path / "result.jsonl"
+
+    def fake_view_cli(argv):  # type: ignore[no-untyped-def]
+        calls.append(list(argv))
+        return 9
+
+    cli_main_module = importlib.import_module("agentbench.cli.main")
+    monkeypatch.setattr(cli_main_module, "view_cli", fake_view_cli)
+
+    assert cli(["view", str(result_log), "--port", "9000"]) == 9
+    assert calls == [[str(result_log), "--port", "9000"]]
+
+
+def test_legacy_console_entry_dispatches_cli_args(monkeypatch, tmp_path) -> None:
+    calls: list[list[str]] = []
+    output_path = tmp_path / "result.json"
+
+    def fake_cli(argv):  # type: ignore[no-untyped-def]
+        calls.append(list(argv))
+        return 5
+
+    cli_main_module = importlib.import_module("agentbench.cli.main")
+    monkeypatch.setattr(cli_main_module, "cli", fake_cli)
+    monkeypatch.setattr("sys.argv", ["agentbench", "--output", str(output_path)])
+
+    assert main() == 5
+    assert calls == [["--output", str(output_path)]]

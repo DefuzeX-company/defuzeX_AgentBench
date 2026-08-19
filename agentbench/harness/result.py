@@ -19,6 +19,18 @@ class BenchmarkStepResult:
 
 
 @dataclass(frozen=True)
+class BenchmarkStepFailure:
+    """One SDK Input that failed before the full step completed."""
+
+    input_id: str
+    payload: object
+    error_type: str
+    error_message: str
+    output: object | None = None
+    raw_output: object | None = None
+
+
+@dataclass(frozen=True)
 class BenchmarkResult:
     """Completed Harness execution for one registered Agent."""
 
@@ -74,9 +86,7 @@ class BenchmarkSuiteResult:
             raise ValueError("A benchmark suite result requires selected Agents")
         attempted_ids = tuple(item.agent_id for item in self.items)
         if attempted_ids != self.selected_agent_ids[: len(attempted_ids)]:
-            raise ValueError(
-                "Suite result items must follow the selected Agent order"
-            )
+            raise ValueError("Suite result items must follow the selected Agent order")
 
     @property
     def selected_count(self) -> int:
