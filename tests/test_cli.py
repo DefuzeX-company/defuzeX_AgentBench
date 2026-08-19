@@ -34,6 +34,11 @@ class FakeSuiteRunner:
     def __init__(self, *, error: Exception | None = None) -> None:
         self.error = error
         self.calls: list[tuple[object, dict[str, object]]] = []
+        self.suite_count = 0
+
+    def new_suite_id(self) -> str:
+        self.suite_count += 1
+        return f"suite_test_{self.suite_count}"
 
     def run_defuzex(self, agents, **kwargs):  # type: ignore[no-untyped-def]
         selected = tuple(agents)
@@ -76,12 +81,17 @@ class FakeSuiteRunner:
             step_complete = kwargs.get("on_step_complete")
             if callable(step_complete):
                 step_complete(agent.agent_id, benchmark.steps[0])
-            item = SuiteAgentResult(agent_id=agent.agent_id, benchmark=benchmark)
+            item = SuiteAgentResult(
+                agent_id=agent.agent_id,
+                benchmarks=tuple(benchmark for _ in range(agent.case_count)),
+                requested_case_count=agent.case_count,
+            )
             items.append(item)
             complete = kwargs.get("on_agent_complete")
             if callable(complete):
                 complete(item)
         return BenchmarkSuiteResult(
+            suite_id=str(kwargs["suite_id"]),
             selected_agent_ids=tuple(agent.agent_id for agent in selected),
             items=tuple(items),
         )
@@ -109,6 +119,7 @@ def test_cli_detects_agent_and_accepts_yes(
     assert output[0] == DEFUZE_LOGO
     for agent in enabled_agents:
         assert any(agent.agent_id in line for line in output)
+        assert any(f"cases: {agent.case_count}" in line for line in output)
     assert any("Running: [1/3] langgraph-new-project" in line for line in output)
     assert any(f"{ANSI_GREEN}OK{ANSI_RESET}" in line for line in output)
     assert output[-1] == (
@@ -175,11 +186,22 @@ def test_cli_reports_provider_configuration_error() -> None:
     )
 
 
-def test_main_writes_append_only_result_artifact(tmp_path) -> None:
+def test_main_writes_append_only_result_artifact(
+    tmp_path, enabled_agents: tuple[AgentRegistration, ...]
+) -> None:
     output: list[str] = []
     runner = FakeSuiteRunner()
     output_path = tmp_path / "result.json"
     post_run_answers = iter(["r", "q"])
+
+    def start_locked_viewer(path):  # type: ignore[no-untyped-def]
+        first_event = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+        return FakeViewer(
+            url=(
+                "http://127.0.0.1:8765/suite/"
+                f"{first_event['suite_id']}/"
+            )
+        )
 
     exit_code = main(
         input_fn=lambda _: "yes",
@@ -187,7 +209,7 @@ def test_main_writes_append_only_result_artifact(tmp_path) -> None:
         suite_runner=runner,  # type: ignore[arg-type]
         sleep_fn=lambda _: None,
         output_path=output_path,
-        viewer_starter=lambda _: FakeViewer(),  # type: ignore[arg-type]
+        viewer_starter=start_locked_viewer,  # type: ignore[arg-type]
         post_run_input_fn=lambda _: next(post_run_answers),
     )
 
@@ -199,9 +221,15 @@ def test_main_writes_append_only_result_artifact(tmp_path) -> None:
     ]
     assert exit_code == 0
     assert f"Result artifact started: {artifacts[0]}" in output
-    assert "View: http://127.0.0.1:8765" in output
     assert any(
-        line.startswith("View: http://127.0.0.1:8765/#agent=") for line in output
+        line.startswith("View: http://127.0.0.1:8765/suite/suite_test_")
+        for line in output
+    )
+    assert any(
+        line.startswith("View: http://127.0.0.1:8765/suite/suite_test_")
+        and "#agent=" in line
+        and "//#agent=" not in line
+        for line in output
     )
     assert any(f"Result saved: {artifacts[0]}" in line for line in output)
     assert any(
@@ -212,6 +240,17 @@ def test_main_writes_append_only_result_artifact(tmp_path) -> None:
     assert "Viewer stopped." in output
     assert lines[0]["event"] == "run_started"
     assert lines[-1]["event"] == "suite_completed"
+    suite_ids = []
+    for artifact in artifacts:
+        events = [
+            json.loads(line)
+            for line in artifact.read_text(encoding="utf-8").splitlines()
+        ]
+        assert {event["suite_id"] for event in events} == {
+            events[0]["suite_id"]
+        }
+        suite_ids.append(events[0]["suite_id"])
+    assert set(suite_ids) == {"suite_test_1", "suite_test_2"}
     assert any(event["event"] == "step_started" for event in lines)
     assert any(event["event"] == "step_completed" for event in lines)
     assert lines[-1]["summary"]["suite_passed"] is True

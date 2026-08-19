@@ -53,11 +53,12 @@ def benchmark_result(
 
 def suite_result(*agent_ids: str) -> BenchmarkSuiteResult:
     return BenchmarkSuiteResult(
+        suite_id="suite_test",
         selected_agent_ids=agent_ids,
         items=tuple(
             SuiteAgentResult(
                 agent_id=agent_id,
-                benchmark=benchmark_result(agent_id, with_step=True),
+                benchmarks=(benchmark_result(agent_id, with_step=True),),
             )
             for agent_id in agent_ids
         ),

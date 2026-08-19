@@ -6,8 +6,11 @@ const state = {
   refreshing: false,
 };
 
+const requestedSuiteId = suiteIdFromPath();
+
 const els = {
   stateBadge: document.querySelector("#stateBadge"),
+  suiteId: document.querySelector("#suiteId"),
   resultPath: document.querySelector("#resultPath"),
   metricSelected: document.querySelector("#metricSelected"),
   metricPassed: document.querySelector("#metricPassed"),
@@ -44,11 +47,20 @@ async function refresh() {
   state.refreshing = true;
   updateRefreshButton();
   try {
-    const response = await fetch("/api/result", { cache: "no-store" });
+    const apiPath = requestedSuiteId
+      ? `/api/suites/${encodeURIComponent(requestedSuiteId)}/result`
+      : "/api/result";
+    const apiUrl = new URL(apiPath, window.location.origin);
+    const response = await fetch(apiUrl, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     state.data = await response.json();
+    if (requestedSuiteId && state.data.suite_id !== requestedSuiteId) {
+      throw new Error(
+        `Suite mismatch: requested ${requestedSuiteId}, received ${state.data.suite_id || "legacy"}`,
+      );
+    }
     state.lastUpdatedAt = new Date();
     if (!state.selectedAgentId) {
       state.selectedAgentId = selectedFromHash() || firstAgentId(state.data);
@@ -82,6 +94,11 @@ function render() {
 }
 
 function renderHeader(data) {
+  const suiteId = data.suite_id || "legacy";
+  els.suiteId.textContent = `Suite ${suiteId}`;
+  els.suiteId.title = data.suite_id
+    ? `Suite ID: ${data.suite_id}`
+    : "Legacy result without a Suite ID";
   els.resultPath.textContent = data.path || "";
   els.stateBadge.className = `badge ${stateClass(data.state)}`;
   els.stateBadge.textContent = stateLabel(data.state);
@@ -333,6 +350,11 @@ function updateRefreshButton() {
 
 function agentId(item) {
   return item.agent_id || "unknown-agent";
+}
+
+function suiteIdFromPath() {
+  const match = window.location.pathname.match(/^\/suite\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function agentStatusClass(item) {

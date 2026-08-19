@@ -10,7 +10,7 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Sequence
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -23,6 +23,7 @@ class RunningViewer:
 
     server: ThreadingHTTPServer
     thread: threading.Thread
+    base_url: str
     url: str
 
     def stop(self) -> None:
@@ -60,7 +61,8 @@ def serve_result_log(
         raise FileNotFoundError(f"Result log not found: {path}")
 
     server = create_viewer_server(path, host=host, port=port)
-    url = f"http://{host}:{server.server_port}"
+    base_url = f"http://{host}:{server.server_port}"
+    url = _locked_viewer_url(base_url, _result_log_suite_id(path))
     print(f"View: {url}")
     print(f"Result log: {path}")
     try:
@@ -79,13 +81,17 @@ def start_viewer_server(
 ) -> RunningViewer:
     """Start the result viewer in a daemon thread."""
 
-    server = create_viewer_server(Path(result_log).resolve(), host=host, port=port)
+    path = Path(result_log).resolve()
+    suite_id = _result_log_suite_id(path)
+    server = create_viewer_server(path, host=host, port=port)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    base_url = f"http://{host}:{server.server_port}"
     return RunningViewer(
         server=server,
         thread=thread,
-        url=f"http://{host}:{server.server_port}",
+        base_url=base_url,
+        url=_locked_viewer_url(base_url, suite_id),
     )
 
 
@@ -97,7 +103,9 @@ def create_viewer_server(
 ) -> ThreadingHTTPServer:
     """Create a local viewer server, falling back to a free port if needed."""
 
-    handler = build_viewer_handler(result_log)
+    handler = build_viewer_handler(
+        result_log, expected_suite_id=_result_log_suite_id(result_log)
+    )
     try:
         return ThreadingHTTPServer((host, port), handler)
     except OSError:
@@ -106,7 +114,9 @@ def create_viewer_server(
         return ThreadingHTTPServer((host, 0), handler)
 
 
-def build_viewer_handler(result_log: Path) -> type[SimpleHTTPRequestHandler]:
+def build_viewer_handler(
+    result_log: Path, *, expected_suite_id: str | None
+) -> type[SimpleHTTPRequestHandler]:
     """Build a request handler bound to one JSONL result artifact."""
 
     class ViewerHandler(SimpleHTTPRequestHandler):
@@ -118,19 +128,45 @@ def build_viewer_handler(result_log: Path) -> type[SimpleHTTPRequestHandler]:
 
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
-            if parsed.path == "/api/result":
+            result_api_path = _suite_result_api_path(expected_suite_id)
+            if parsed.path == result_api_path:
                 self._send_json(parse_result_log(result_log))
+                return
+            if parsed.path == "/api/result" or parsed.path.startswith(
+                "/api/suites/"
+            ):
+                self._send_suite_mismatch()
                 return
             if parsed.path == "/api/health":
                 self._send_json({"ok": True})
                 return
 
+            suite_path = _suite_view_path(expected_suite_id)
+            if parsed.path.rstrip("/") == suite_path.rstrip("/"):
+                self.path = "/index.html"
+                super().do_GET()
+                return
+            if parsed.path in {"", "/"} and expected_suite_id is not None:
+                self._send_suite_mismatch()
+                return
+
             self.path = _static_path(parsed.path)
             super().do_GET()
 
-        def _send_json(self, payload: object) -> None:
+        def _send_suite_mismatch(self) -> None:
+            self._send_json(
+                {
+                    "error": "Suite ID does not match this result viewer.",
+                    "suite_id": expected_suite_id,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+
+        def _send_json(
+            self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
+        ) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-            self.send_response(HTTPStatus.OK)
+            self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
@@ -164,6 +200,7 @@ def parse_result_log(path: str | Path) -> dict[str, object]:
                 {"line": line_number, "message": "Expected JSON object"}
             )
 
+    suite_id: str | None = None
     selected_agent_ids: list[str] = []
     agents: list[dict[str, object]] = []
     step_events_by_agent: dict[str, list[dict[str, object]]] = {}
@@ -173,6 +210,9 @@ def parse_result_log(path: str | Path) -> dict[str, object]:
     for event in events:
         event_type = event.get("event")
         if event_type == "run_started":
+            event_suite_id = event.get("suite_id")
+            if isinstance(event_suite_id, str):
+                suite_id = event_suite_id
             selected = event.get("selected_agent_ids")
             if isinstance(selected, list):
                 selected_agent_ids = [str(agent_id) for agent_id in selected]
@@ -201,6 +241,7 @@ def parse_result_log(path: str | Path) -> dict[str, object]:
 
     return {
         "path": str(result_path),
+        "suite_id": suite_id,
         "state": state,
         "selected_agent_ids": selected_agent_ids,
         "agents": agents,
@@ -209,6 +250,39 @@ def parse_result_log(path: str | Path) -> dict[str, object]:
         "parse_errors": parse_errors,
         "event_count": len(events),
     }
+
+
+def _result_log_suite_id(path: Path) -> str | None:
+    """Read the Suite ID from the first valid run-start event."""
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("event") != "run_started":
+            continue
+        suite_id = event.get("suite_id")
+        return suite_id if isinstance(suite_id, str) else None
+    return None
+
+
+def _locked_viewer_url(base_url: str, suite_id: str | None) -> str:
+    if suite_id is None:
+        return base_url
+    return f"{base_url}{_suite_view_path(suite_id)}"
+
+
+def _suite_view_path(suite_id: str | None) -> str:
+    if suite_id is None:
+        return "/"
+    return f"/suite/{quote(suite_id, safe='')}/"
+
+
+def _suite_result_api_path(suite_id: str | None) -> str:
+    if suite_id is None:
+        return "/api/result"
+    return f"/api/suites/{quote(suite_id, safe='')}/result"
 
 
 def _merge_step_events(

@@ -1,5 +1,8 @@
 import json
+from urllib.error import HTTPError
 from urllib.request import urlopen
+
+import pytest
 
 from agentbench.cli.viewer import parse_result_log, start_viewer_server
 
@@ -7,7 +10,11 @@ from agentbench.cli.viewer import parse_result_log, start_viewer_server
 def test_parse_result_log_groups_events_and_skips_bad_lines(tmp_path) -> None:
     result_log = tmp_path / "result-20260819-010101.jsonl"
     events = [
-        {"event": "run_started", "selected_agent_ids": ["agent-a"]},
+        {
+            "event": "run_started",
+            "suite_id": "suite_test",
+            "selected_agent_ids": ["agent-a"],
+        },
         {
             "event": "step_started",
             "agent_id": "agent-a",
@@ -53,6 +60,7 @@ def test_parse_result_log_groups_events_and_skips_bad_lines(tmp_path) -> None:
     parsed = parse_result_log(result_log)
 
     assert parsed["state"] == "complete"
+    assert parsed["suite_id"] == "suite_test"
     assert parsed["selected_agent_ids"] == ["agent-a"]
     assert parsed["summary"] == {"suite_passed": True}
     assert parsed["event_count"] == 5
@@ -88,6 +96,7 @@ def test_parse_result_log_surfaces_step_events_without_agent_result(tmp_path) ->
     parsed = parse_result_log(result_log)
 
     assert parsed["state"] == "running_or_interrupted"
+    assert parsed["suite_id"] is None
     assert parsed["agents"] == [
         {
             "agent_id": "agent-a",
@@ -111,22 +120,36 @@ def test_parse_result_log_surfaces_step_events_without_agent_result(tmp_path) ->
 def test_viewer_serves_static_app_and_live_result_api(tmp_path) -> None:
     result_log = tmp_path / "result.jsonl"
     result_log.write_text(
-        json.dumps({"event": "run_started", "selected_agent_ids": ["agent-a"]}),
+        json.dumps(
+            {
+                "event": "run_started",
+                "suite_id": "suite_test",
+                "selected_agent_ids": ["agent-a"],
+            }
+        ),
         encoding="utf-8",
     )
     viewer = start_viewer_server(result_log, port=0)
 
     try:
-        with urlopen(f"{viewer.url}/api/health", timeout=2) as response:
+        with urlopen(f"{viewer.base_url}/api/health", timeout=2) as response:
             health = json.load(response)
-        with urlopen(f"{viewer.url}/api/result", timeout=2) as response:
+        with urlopen(
+            f"{viewer.base_url}/api/suites/suite_test/result", timeout=2
+        ) as response:
             result = json.load(response)
         with urlopen(viewer.url, timeout=2) as response:
             html = response.read().decode("utf-8")
+        with pytest.raises(HTTPError) as error:
+            urlopen(
+                f"{viewer.base_url}/api/suites/suite_wrong/result", timeout=2
+            )
     finally:
         viewer.stop()
 
     assert health == {"ok": True}
+    assert viewer.url.endswith("/suite/suite_test/")
     assert result["selected_agent_ids"] == ["agent-a"]
+    assert error.value.code == 409
     assert "<title>AgentBench Result Viewer</title>" in html
     assert not viewer.thread.is_alive()

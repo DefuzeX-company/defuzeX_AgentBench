@@ -102,6 +102,16 @@ h1 {
   white-space: nowrap;
 }
 
+.suite-id {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .path {
   max-width: 48vw;
   overflow: hidden;
@@ -404,7 +414,8 @@ pre {
     flex-direction: column;
   }
 
-  .path {
+  .path,
+  .suite-id {
     max-width: 100%;
   }
 

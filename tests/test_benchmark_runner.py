@@ -117,6 +117,7 @@ def test_official_mode_uses_standard_environment_key_and_sdk_judge(
     assert factory.kwargs is not None
     assert factory.kwargs["api_key"] == "dfx_test"
     assert factory.kwargs["requirement_path"] == starter_agent.requirement_path
+    assert "max_inputs" not in factory.kwargs
     assert "case_provider" not in factory.kwargs
     assert "judge_provider" not in factory.kwargs
 
@@ -276,6 +277,7 @@ def test_explicit_provider_pair_selects_local_mode(
     assert factory.kwargs is not None
     assert factory.kwargs["case_provider"] is case_provider
     assert factory.kwargs["judge_provider"] is judge_provider
+    assert factory.kwargs["max_inputs"] == 1
     assert "api_key" not in factory.kwargs
     assert "requirement_path" not in factory.kwargs
 

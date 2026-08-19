@@ -53,35 +53,57 @@ class SuiteAgentResult:
     """Outcome for one selected Agent in a benchmark suite."""
 
     agent_id: str
-    benchmark: BenchmarkResult | None = None
+    benchmarks: tuple[BenchmarkResult, ...] = ()
+    requested_case_count: int = 1
     error_type: str | None = None
     error_message: str | None = None
 
     def __post_init__(self) -> None:
-        has_benchmark = self.benchmark is not None
+        has_benchmark = bool(self.benchmarks)
         has_error = self.error_type is not None
-        if has_benchmark == has_error:
+        if not has_benchmark and not has_error:
             raise ValueError(
-                "Suite Agent result requires exactly one benchmark or error"
+                "Suite Agent result requires at least one benchmark or an error"
             )
         if has_error and self.error_message is None:
             raise ValueError("Suite Agent error requires an error message")
-        if self.benchmark is not None and self.benchmark.agent_id != self.agent_id:
+        if any(result.agent_id != self.agent_id for result in self.benchmarks):
             raise ValueError("Suite Agent ID does not match its benchmark result")
+        if self.requested_case_count < 1:
+            raise ValueError("Suite Agent requested case count must be positive")
+        if len(self.benchmarks) > self.requested_case_count:
+            raise ValueError("Suite Agent completed more Cases than requested")
+
+    @property
+    def benchmark(self) -> BenchmarkResult | None:
+        """Return the latest completed run for legacy single-result consumers."""
+
+        return self.benchmarks[-1] if self.benchmarks else None
+
+    @property
+    def completed_case_count(self) -> int:
+        return len(self.benchmarks)
 
     @property
     def passed(self) -> bool:
-        return self.benchmark is not None and self.benchmark.passed
+        return (
+            self.error_type is None
+            and self.completed_case_count == self.requested_case_count
+            and all(benchmark.passed for benchmark in self.benchmarks)
+        )
 
 
 @dataclass(frozen=True)
 class BenchmarkSuiteResult:
     """Aggregate result for a selected set of benchmark Agents."""
 
+    suite_id: str
     selected_agent_ids: tuple[str, ...]
     items: tuple[SuiteAgentResult, ...]
 
     def __post_init__(self) -> None:
+        if not self.suite_id.strip():
+            raise ValueError("A benchmark suite result requires a Suite ID")
         if not self.selected_agent_ids:
             raise ValueError("A benchmark suite result requires selected Agents")
         attempted_ids = tuple(item.agent_id for item in self.items)

@@ -22,6 +22,7 @@ class AgentRegistration:
     status: str
     framework: str
     source: str
+    case_count: int = 1
     requirement_path: Path | None = None
 
 
@@ -98,6 +99,7 @@ def _parse_agent(item: dict[str, object], repo_root: Path) -> AgentRegistration:
         status=str(item.get("status", "unknown")),
         framework=_required_string(item, "framework"),
         source=str(item.get("source", "")),
+        case_count=_positive_integer(item, "case", default=1),
         requirement_path=requirement_path,
     )
 
@@ -107,4 +109,15 @@ def _required_string(item: dict[str, object], key: str) -> str:
     value = item.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"Registry field must be a non-empty string: {key}")
+    return value
+
+
+def _positive_integer(
+    item: dict[str, object], key: str, *, default: int
+) -> int:
+    """Read an optional positive integer field."""
+
+    value = item.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"Registry field must be a positive integer: {key}")
     return value

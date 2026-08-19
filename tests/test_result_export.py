@@ -31,6 +31,7 @@ def test_result_log_appends_trace_events_without_losing_earlier_data(
     step = benchmark.steps[0]
     writer = start_result_log(
         tmp_path / "result.json",
+        suite_id="suite_test",
         selected_agent_ids=("agent-a",),
         now=FIXED_TIME,
     )
@@ -49,7 +50,11 @@ def test_result_log_appends_trace_events_without_losing_earlier_data(
         ),
     )
     writer.append_agent_complete(
-        SuiteAgentResult(agent_id="agent-a", benchmark=benchmark)
+        SuiteAgentResult(
+            agent_id="agent-a",
+            benchmarks=(benchmark, benchmark),
+            requested_case_count=2,
+        )
     )
     writer.append_suite_complete(result)
 
@@ -63,18 +68,23 @@ def test_result_log_appends_trace_events_without_losing_earlier_data(
         "agent_completed",
         "suite_completed",
     ]
+    assert {event["suite_id"] for event in events} == {"suite_test"}
     assert events[1]["payload"] == {"prompt": "Prompt for agent-a"}
     assert events[2]["step"]["raw_output"] == {
         "node": "final",
         "messages": ["trace for agent-a"],
     }
     assert events[3]["failure"]["payload"] == {"prompt": "kept before failure"}
+    assert events[4]["item"]["requested_case_count"] == 2
+    assert events[4]["item"]["completed_case_count"] == 2
+    assert len(events[4]["item"]["benchmarks"]) == 2
     assert events[-1]["summary"]["suite_passed"] is True
 
 
 def test_result_log_records_suite_failure(tmp_path) -> None:
     writer = start_result_log(
         tmp_path / "result.json",
+        suite_id="suite_failed",
         selected_agent_ids=("agent-a",),
         now=FIXED_TIME,
     )
@@ -83,6 +93,7 @@ def test_result_log_records_suite_failure(tmp_path) -> None:
 
     assert read_events(writer.path)[-1] == {
         "event": "suite_failed",
+        "suite_id": "suite_failed",
         "error": {
             "type": "RuntimeError",
             "message": "service unavailable",

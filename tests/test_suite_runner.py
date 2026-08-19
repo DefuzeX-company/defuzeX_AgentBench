@@ -21,6 +21,7 @@ class FakeBenchmarkRunner:
         self.validation_error = validation_error
         self.calls: list[tuple[str, dict[str, object]]] = []
         self.validation_calls: list[str] = []
+        self.outcome_positions: dict[str, int] = {}
 
     def validate_defuzex(self, registration, **kwargs):  # type: ignore[no-untyped-def]
         del kwargs
@@ -32,6 +33,10 @@ class FakeBenchmarkRunner:
     def run_defuzex(self, registration, **kwargs):  # type: ignore[no-untyped-def]
         self.calls.append((registration.agent_id, kwargs))
         outcome = self.outcomes[registration.agent_id]
+        if isinstance(outcome, list):
+            position = self.outcome_positions.get(registration.agent_id, 0)
+            self.outcome_positions[registration.agent_id] = position + 1
+            outcome = outcome[position]
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
@@ -67,7 +72,10 @@ def test_suite_runner_runs_every_agent_and_aggregates_results(
     )
 
     expected_ids = [agent.agent_id for agent in agents]
-    assert [agent_id for agent_id, _ in fake.calls] == expected_ids
+    expected_run_ids = [
+        agent.agent_id for agent in agents for _ in range(agent.case_count)
+    ]
+    assert [agent_id for agent_id, _ in fake.calls] == expected_run_ids
     assert started == [
         f"{index}/{len(agents)}:{agent_id}"
         for index, agent_id in enumerate(expected_ids, start=1)
@@ -84,6 +92,9 @@ def test_suite_runner_runs_every_agent_and_aggregates_results(
     assert result.passed_count == len(agents)
     assert result.failed_count == 0
     assert result.skipped_count == 0
+    assert [item.completed_case_count for item in result.items] == [
+        agent.case_count for agent in agents
+    ]
     for _, kwargs in fake.calls:
         assert kwargs["api_key"] == "dfx_test"
         assert kwargs["allow_local"] is True
@@ -112,6 +123,68 @@ def test_suite_runner_records_agent_error_and_continues(
     failed = result.items[1]
     assert failed.error_type == "RuntimeError"
     assert failed.error_message == "container failed"
+
+
+def test_suite_runner_creates_a_new_id_for_each_execution(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agent = enabled_agents[0]
+    fake = FakeBenchmarkRunner(
+        {
+            agent.agent_id: [
+                benchmark_result(agent.agent_id)
+                for _ in range(agent.case_count * 2)
+            ]
+        }
+    )
+    runner = SuiteRunner(benchmark_runner=fake)  # type: ignore[arg-type]
+
+    first = runner.run_defuzex((agent,))
+    second = runner.run_defuzex((agent,))
+
+    assert first.suite_id.startswith("suite_")
+    assert second.suite_id.startswith("suite_")
+    assert first.suite_id != second.suite_id
+
+
+def test_suite_runner_preserves_a_supplied_suite_id(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agent = enabled_agents[0]
+    fake = FakeBenchmarkRunner(
+        {agent.agent_id: benchmark_result(agent.agent_id)}
+    )
+
+    result = SuiteRunner(benchmark_runner=fake).run_defuzex(  # type: ignore[arg-type]
+        (agent,), suite_id="suite_from_cli"
+    )
+
+    assert result.suite_id == "suite_from_cli"
+
+
+def test_suite_runner_preserves_completed_cases_after_later_generation_failure(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agent = enabled_agents[0]
+    fake = FakeBenchmarkRunner(
+        {
+            agent.agent_id: [
+                benchmark_result(agent.agent_id),
+                benchmark_result(agent.agent_id),
+                RuntimeError("no more cases"),
+            ]
+        }
+    )
+
+    result = SuiteRunner(benchmark_runner=fake).run_defuzex((agent,))  # type: ignore[arg-type]
+
+    item = result.items[0]
+    assert item.completed_case_count == 2
+    assert item.requested_case_count == 3
+    assert item.error_type == "RuntimeError"
+    assert item.error_message == "no more cases"
+    assert len(fake.calls) == 3
+    assert not item.passed
 
 
 def test_suite_runner_can_stop_after_first_failed_benchmark(

@@ -72,8 +72,8 @@ def main(
 
     print_logo(output_fn)
     sleep_fn(LOGO_PAUSE_SECONDS)
-    agents = load_registry(registry_path).enabled()
 
+    agents = load_registry(registry_path).enabled()
     if not agents:
         _print_agents(agents, output_fn)
         output_fn("No enabled benchmark agents detected.")
@@ -147,6 +147,7 @@ def _run_benchmark_once(
     output_fn: Callable[[str], None],
     viewer_starter: Callable[[Path], RunningViewer],
 ) -> tuple[int, ResultLogWriter | None, RunningViewer | None]:
+    suite_id = runner.new_suite_id()
     result_log: ResultLogWriter | None = None
     viewer: RunningViewer | None = None
     # With --output we create a unique append-only JSONL artifact containing
@@ -155,9 +156,11 @@ def _run_benchmark_once(
     if output_path is not None:
         result_log = start_result_log(
             output_path,
+            suite_id=suite_id,
             selected_agent_ids=tuple(agent.agent_id for agent in agents),
         )
         viewer = viewer_starter(result_log.path)
+        output_fn(f"Suite ID: {suite_id}")
         output_fn(f"Result artifact started: {result_log.path}")
         output_fn(f"View: {viewer.url}")
 
@@ -165,6 +168,7 @@ def _run_benchmark_once(
     try:
         result = runner.run_defuzex(
             agents,
+            suite_id=suite_id,
             allow_local=True,
             track_files=False,
             on_agent_start=lambda agent, index, total: _print_agent_start(
@@ -341,7 +345,7 @@ def _print_agents(
         output_fn(
             _panel_line(
                 f"    framework: {ANSI_BLUE}{agent.framework}{ANSI_RESET}"
-                f"    status: {status}"
+                f"    status: {status}    cases: {agent.case_count}"
             )
         )
         output_fn(_panel_line(f"    path: {_display_path(agent.path)}"))
@@ -379,24 +383,25 @@ def _print_agent_start(
 def _print_agent_complete(
     item: SuiteAgentResult, output_fn: Callable[[str], None]
 ) -> None:
-    if item.error_type is not None:
+    if item.error_type is not None and item.completed_case_count == 0:
         output_fn(
             f"Result: {ANSI_RED}FAILED{ANSI_RESET} | "
             f"{item.error_type}: {item.error_message}"
         )
         return
 
-    benchmark = item.benchmark
-    if benchmark is None:  # pragma: no cover - enforced by SuiteAgentResult
-        raise RuntimeError("Suite result has neither a benchmark nor an error")
     status = (
         f"{ANSI_GREEN}PASS{ANSI_RESET}"
-        if benchmark.passed
+        if item.passed
         else f"{ANSI_RED}FAIL{ANSI_RESET}"
     )
-    output_fn(
-        f"Result: {status} | run={benchmark.run_id} | inputs={benchmark.history_count}"
+    detail = (
+        f"Result: {status} | "
+        f"cases={item.completed_case_count}/{item.requested_case_count}"
     )
+    if item.error_type is not None:
+        detail += f" | stopped={item.error_type}: {item.error_message}"
+    output_fn(detail)
 
 
 def _handle_agent_complete(
@@ -413,7 +418,8 @@ def _handle_agent_complete(
 
 
 def _agent_view_url(viewer_url: str, agent_id: str) -> str:
-    return f"{viewer_url}/#agent={quote(agent_id, safe='')}"
+    separator = "" if viewer_url.endswith("/") else "/"
+    return f"{viewer_url}{separator}#agent={quote(agent_id, safe='')}"
 
 
 def _print_suite_summary(

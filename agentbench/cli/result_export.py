@@ -22,12 +22,15 @@ class ResultLogWriter:
     """Append-only result artifact for interruption-tolerant benchmark runs."""
 
     path: Path
+    suite_id: str
+
+    def _append(self, event: Mapping[str, object]) -> None:
+        append_result_event(self.path, {"suite_id": self.suite_id, **event})
 
     def append_step_started(
         self, agent_id: str, input_id: str, payload: object
     ) -> None:
-        append_result_event(
-            self.path,
+        self._append(
             {
                 "event": "step_started",
                 "agent_id": agent_id,
@@ -37,8 +40,7 @@ class ResultLogWriter:
         )
 
     def append_step_completed(self, agent_id: str, step: BenchmarkStepResult) -> None:
-        append_result_event(
-            self.path,
+        self._append(
             {
                 "event": "step_completed",
                 "agent_id": agent_id,
@@ -47,8 +49,7 @@ class ResultLogWriter:
         )
 
     def append_step_failed(self, agent_id: str, failure: BenchmarkStepFailure) -> None:
-        append_result_event(
-            self.path,
+        self._append(
             {
                 "event": "step_failed",
                 "agent_id": agent_id,
@@ -57,8 +58,7 @@ class ResultLogWriter:
         )
 
     def append_agent_complete(self, item: SuiteAgentResult) -> None:
-        append_result_event(
-            self.path,
+        self._append(
             {
                 "event": "agent_completed",
                 "agent_id": item.agent_id,
@@ -67,8 +67,9 @@ class ResultLogWriter:
         )
 
     def append_suite_complete(self, result: BenchmarkSuiteResult) -> None:
-        append_result_event(
-            self.path,
+        if result.suite_id != self.suite_id:
+            raise ValueError("Suite result ID does not match its result log")
+        self._append(
             {
                 "event": "suite_completed",
                 "summary": _summary_to_json(result),
@@ -76,8 +77,7 @@ class ResultLogWriter:
         )
 
     def append_suite_error(self, exc: Exception) -> None:
-        append_result_event(
-            self.path,
+        self._append(
             {
                 "event": "suite_failed",
                 "error": {
@@ -91,20 +91,24 @@ class ResultLogWriter:
 def start_result_log(
     output_path: str | Path,
     *,
+    suite_id: str,
     selected_agent_ids: tuple[str, ...],
     now: datetime | None = None,
 ) -> ResultLogWriter:
     """Create a unique JSONL result log and append the run-start event."""
 
+    if not suite_id.strip():
+        raise ValueError("Suite ID cannot be empty")
     path = unique_result_log_path(output_path, now=now)
     append_result_event(
         path,
         {
             "event": "run_started",
+            "suite_id": suite_id,
             "selected_agent_ids": list(selected_agent_ids),
         },
     )
-    return ResultLogWriter(path)
+    return ResultLogWriter(path=path, suite_id=suite_id)
 
 
 def unique_result_log_path(
@@ -155,20 +159,21 @@ def _summary_to_json(result: BenchmarkSuiteResult) -> dict[str, object]:
 
 
 def _suite_agent_to_json(item: SuiteAgentResult) -> dict[str, object]:
-    if item.benchmark is None:
-        return {
-            "agent_id": item.agent_id,
-            "benchmark": None,
-            "error": {
-                "type": item.error_type,
-                "message": item.error_message,
-            },
-        }
-
     return {
         "agent_id": item.agent_id,
-        "benchmark": _benchmark_to_json(item.benchmark),
-        "error": None,
+        "benchmark": (
+            None if item.benchmark is None else _benchmark_to_json(item.benchmark)
+        ),
+        "benchmarks": [
+            _benchmark_to_json(benchmark) for benchmark in item.benchmarks
+        ],
+        "requested_case_count": item.requested_case_count,
+        "completed_case_count": item.completed_case_count,
+        "error": (
+            None
+            if item.error_type is None
+            else {"type": item.error_type, "message": item.error_message}
+        ),
     }
 
 
