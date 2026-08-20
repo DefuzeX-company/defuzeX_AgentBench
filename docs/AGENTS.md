@@ -1,36 +1,41 @@
 # Agent Documentation Guide
 
-在修改 AgentBench 前，先根据任务范围阅读对应文档。
+Before changing AgentBench, read the documentation that matches the task scope.
 
 ## CLI
 
-如果需要了解、使用或修改 AgentBench CLI，必须先阅读
-[`CLI.md`](./CLI.md)。该文档是 CLI 的规范来源，包含：
+If you need to understand, use, or modify the AgentBench CLI, read
+[`CLI.md`](./CLI.md) first. That file is the source of truth for the CLI and
+covers:
 
-- `run`、`view`、`certify` 的完整使用方式；
-- 所有 positional arguments、options、默认值和兼容形式；
-- 交互提示、退出码、JSONL 结果和 viewer 生命周期；
-- `adapting` 到 `ready` 的认证与 Registry 更新规则；
-- CLI feature 注册结构和新增命令的实现要求。
+- complete usage for `run`, `view`, and `certify`;
+- all positional arguments, options, defaults, and compatibility forms;
+- interactive prompts, exit codes, JSONL results, and viewer lifecycle;
+- certification and Registry update rules from `adapting` to `ready`;
+- the CLI feature registration structure and implementation rules for new
+  commands.
 
-修改 CLI 行为、参数、默认值、输出文件或退出码时，必须在同一次改动中更新
-`CLI.md` 和相关测试。
+When changing CLI behavior, arguments, defaults, output files, or exit codes,
+update `CLI.md` and the relevant tests in the same change.
 
 ## Adding Agents
 
-如果需要新增、移植或验证 Agent，必须阅读
-[`How To Add Agent.md`](./How%20To%20Add%20Agent.md)。该文档是短入口，只放
-happy path 和阅读路线。
+If you need to add, port, or validate an Agent, read
+[`How To Add Agent.md`](./How%20To%20Add%20Agent.md). It is the short entry
+point for the onboarding flow and reading path.
 
-按任务范围继续阅读：
+Continue reading based on the task scope:
 
-- 下载来的 Agent 还没有完成改造：读 [`Agents/Factory.md`](./Agents/Factory.md)。
-- 需要处理 Docker、package-data、JSONL worker 或模型网关：
-  读 [`Agents/Runtime.md`](./Agents/Runtime.md)。
-- 需要理解 `certify`、`ready`、Judge FAIL 或结果文件：
-  读 [`Agents/Certify.md`](./Agents/Certify.md)。
-- 已经有具体报错：先查 [`Agents/Troubleshooting.md`](./Agents/Troubleshooting.md)。
-- 需要完整背景时，再读 [`Agents/Reference.md`](./Agents/Reference.md)。
+- A downloaded Agent has not been converted yet: read
+  [`Agents/Factory.md`](./Agents/Factory.md).
+- Docker, package data, JSONL worker behavior, or the Model Gateway is involved:
+  read [`Agents/Runtime.md`](./Agents/Runtime.md).
+- You need to understand `certify`, `ready`, Judge FAIL, or result files:
+  read [`Agents/Certify.md`](./Agents/Certify.md).
+- You already have a concrete error message: start with
+  [`Agents/Troubleshooting.md`](./Agents/Troubleshooting.md).
+- You need the complete background: read
+  [`Agents/Reference.md`](./Agents/Reference.md).
 
-当 Agent onboarding 涉及 `agentbench certify` 或普通 batch 选择规则时，同时
-阅读 `CLI.md`。
+When Agent onboarding involves `agentbench certify` or normal batch selection
+rules, read `CLI.md` as well.
