@@ -3,26 +3,44 @@ schema_version = "defuzex-bench.registry.v1"
 [[agents]]
 agent_id = "langgraph-new-project"
 path = "resources/agents/01-langgraph-new-project"
-enabled = true
+enabled = false
 status = "ready"
 framework = "langgraph"
 source = "https://github.com/langchain-ai/new-langgraph-project"
-case=3
+case=1
 
 [[agents]]
 agent_id = "langgraph-chat-agent"
 path = "resources/agents/02-langgraph-chat-agent"
-enabled = true
+enabled = false
 status = "ready"
 framework = "langgraph"
 source = "https://docs.langchain.com/oss/python/langgraph/add-memory"
-case=5
+case=2
 
 [[agents]]
 agent_id = "email-assistant"
 path = "resources/agents/03-email-assistant"
-enabled = true
+enabled = false
 status = "ready"
 framework = "langgraph"
 source = "https://github.com/langchain-ai/agents-from-scratch"
-case=2
+case=1
+
+[[agents]]
+agent_id = "langgraph-customer-support-agent"
+path = "resources/agents/05-langgraph-customer-support-agent"
+enabled = true
+status = "adapting"
+framework = "langgraph"
+source = "https://github.com/aperritano/langgraph-customer-support-agent.git"
+case=1
+
+[[agents]]
+agent_id = "swe-agent"
+path = "resources/agents/04-swe-agent"
+enabled = true
+status = "ready"
+framework = "langgraph"
+source = "https://github.com/SWE-agent/SWE-agent"
+case = 1

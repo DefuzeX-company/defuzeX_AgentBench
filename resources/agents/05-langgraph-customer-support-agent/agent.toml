@@ -1,0 +1,45 @@
+schema_version = "defuzex-bench.agent.v1"
+agent_id = "langgraph-customer-support-agent"
+display_name = "LangGraph Customer Support Agent"
+framework = "langgraph"
+
+[source]
+url = "https://github.com/aperritano/langgraph-customer-support-agent.git"
+revision = "64dea78-agentbench-vendored-2026-08-20"
+license = "MIT"
+
+[build]
+context = "."
+dockerfile = "Dockerfile"
+
+[launch]
+argv = ["python", "-m", "support_agent.worker"]
+input_mode = "jsonl"
+output_format = "jsonl"
+workdir = "/opt/agent"
+
+[runtime]
+type = "docker"
+timeout_sec = 120
+env_keys = []
+secret_env_keys = []
+
+[model]
+provider = "openai"
+protocol = "openai"
+model = "gpt-4.1-mini"
+upstream_base_url = "https://api.openai.com"
+upstream_base_url_env = "OPENAI_BASE_URL"
+credential_env = "OPENAI_API_KEY"
+base_url_env = "LLM_BASE_URL"
+api_key_env = "LLM_API_KEY"
+model_env = "LLM_MODEL"
+gateway_path = "/v1"
+
+[adapter]
+type = "langgraph"
+mode = "in_process"
+config = "langgraph.json"
+graph_id = "agent"
+input_key = "messages"
+output_key = "final_response"

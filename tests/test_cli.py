@@ -131,7 +131,7 @@ def test_cli_detects_agent_and_accepts_yes(
         assert any(agent.agent_id in line for line in output)
         assert any(f"cases: {agent.case_count}" in line for line in output)
     assert any(
-        f"Running: [1/{len(ready_agents)}] langgraph-new-project" in line
+        f"Running: [1/{len(ready_agents)}] {ready_agents[0].agent_id}" in line
         for line in output
     )
     assert any(f"{ANSI_GREEN}OK{ANSI_RESET}" in line for line in output)

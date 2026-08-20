@@ -7,7 +7,7 @@ from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from pathlib import Path
 
-from agentbench.harness import SuiteRunner
+from agentbench.harness import BenchmarkSuiteResult, SuiteRunner
 from agentbench.harness.registry import load_registry
 
 from agentbench.cli.execution import run_benchmark_once
@@ -38,7 +38,7 @@ def certify(
     output_fn: Callable[[str], None] = print,
     suite_runner: SuiteRunner | None = None,
 ) -> int:
-    """Run one adapting Agent and promote it only after a passing suite."""
+    """Run one adapting Agent and promote it after adapter execution succeeds."""
 
     registry = load_registry(registry_path)
     try:
@@ -59,7 +59,10 @@ def certify(
 
     artifact_base = output_path or _default_output_path(registry_path, agent_id)
     output_fn(f"Certifying adapting Agent: {agent_id}")
-    output_fn("The registry will change to ready only if the full suite passes.")
+    output_fn(
+        "The registry will change to ready if the Agent completes its Cases "
+        "without invocation errors."
+    )
     execution = run_benchmark_once(
         (agent,),
         runner=suite_runner or SuiteRunner(),
@@ -67,7 +70,9 @@ def certify(
         output_fn=output_fn,
         viewer_starter=None,
     )
-    if execution.exit_code != 0:
+    if execution.result is None or not _agent_completed_certification(
+        execution.result, agent_id
+    ):
         output_fn(f"Certification failed. Agent '{agent_id}' remains adapting.")
         return execution.exit_code
 
@@ -82,8 +87,28 @@ def certify(
         output_fn(f"Certification passed, but registry update failed: {exc}")
         return 2
 
-    output_fn(f"Certification passed. Agent '{agent_id}' is now ready.")
+    if execution.result.passed:
+        output_fn(f"Certification passed. Agent '{agent_id}' is now ready.")
+    else:
+        output_fn(
+            f"Certification completed with benchmark failures. Agent '{agent_id}' is now ready."
+        )
     return 0
+
+
+def _agent_completed_certification(
+    result: BenchmarkSuiteResult, agent_id: str
+) -> bool:
+    if result.skipped_count != 0:
+        return False
+    if len(result.items) != 1:
+        return False
+    item = result.items[0]
+    return (
+        item.agent_id == agent_id
+        and item.error_type is None
+        and item.completed_case_count == item.requested_case_count
+    )
 
 
 def _default_output_path(registry_path: str | Path, agent_id: str) -> Path:
@@ -94,10 +119,11 @@ def _default_output_path(registry_path: str | Path, agent_id: str) -> Path:
 
 FEATURE = CommandFeature(
     name="certify",
-    help="Run one adapting Agent and promote it to ready on success.",
+    help="Run one adapting Agent and promote it to ready after execution succeeds.",
     description=(
         "Execute the full benchmark flow for one adapting Agent and update "
-        "its registry status only after a passing suite."
+        "its registry status after it completes all requested Cases without "
+        "invocation errors."
     ),
     configure=configure_parser,
     execute=execute,

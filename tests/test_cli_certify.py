@@ -3,6 +3,7 @@ from pathlib import Path
 
 from agentbench.cli.main import cli
 from agentbench.cli.features.certify import certify
+from agentbench.harness import BenchmarkSuiteResult, SuiteAgentResult
 from agentbench.harness.registry import load_registry
 from tests.test_cli import FakeSuiteRunner
 
@@ -43,7 +44,7 @@ def test_certify_promotes_passing_adapting_agent(tmp_path: Path) -> None:
     assert output[-1] == "Certification passed. Agent 'test-agent' is now ready."
 
 
-def test_certify_keeps_failing_agent_adapting(tmp_path: Path) -> None:
+def test_certify_promotes_agent_that_completes_with_benchmark_failure(tmp_path: Path) -> None:
     registry_path = _write_registry(tmp_path, status="adapting")
     output: list[str] = []
 
@@ -52,6 +53,24 @@ def test_certify_keeps_failing_agent_adapting(tmp_path: Path) -> None:
         registry_path=registry_path,
         output_fn=output.append,
         suite_runner=FakeSuiteRunner(result_status="issue"),  # type: ignore[arg-type]
+    )
+
+    assert exit_code == 0
+    assert load_registry(registry_path).find("test-agent").status == "ready"
+    assert output[-1] == (
+        "Certification completed with benchmark failures. Agent 'test-agent' is now ready."
+    )
+
+
+def test_certify_keeps_invocation_error_agent_adapting(tmp_path: Path) -> None:
+    registry_path = _write_registry(tmp_path, status="adapting")
+    output: list[str] = []
+
+    exit_code = certify(
+        "test-agent",
+        registry_path=registry_path,
+        output_fn=output.append,
+        suite_runner=InvocationErrorSuiteRunner(),  # type: ignore[arg-type]
     )
 
     assert exit_code == 1
@@ -114,3 +133,27 @@ def _write_registry(tmp_path: Path, *, status: str) -> Path:
         encoding="utf-8",
     )
     return registry_path
+
+
+class InvocationErrorSuiteRunner:
+    def __init__(self) -> None:
+        self.suite_count = 0
+
+    def new_suite_id(self) -> str:
+        self.suite_count += 1
+        return f"suite_test_{self.suite_count}"
+
+    def run_defuzex(self, agents, **kwargs):  # type: ignore[no-untyped-def]
+        selected = tuple(agents)
+        return BenchmarkSuiteResult(
+            suite_id=str(kwargs["suite_id"]),
+            selected_agent_ids=tuple(agent.agent_id for agent in selected),
+            items=(
+                SuiteAgentResult(
+                    agent_id=selected[0].agent_id,
+                    requested_case_count=selected[0].case_count,
+                    error_type="AgentInvocationError",
+                    error_message="Agent failed for SDK Input step-1",
+                ),
+            ),
+        )

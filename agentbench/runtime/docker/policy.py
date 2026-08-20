@@ -21,4 +21,5 @@ class DockerPolicy:
             f"--memory={self.memory}",
             f"--cpus={self.cpus}",
             f"--tmpfs=/tmp:rw,noexec,nosuid,size={self.tmpfs_size}",
+            f"--tmpfs=/run/agentbench-tools:rw,exec,nosuid,nodev,size={self.tmpfs_size},mode=1777",
         )
