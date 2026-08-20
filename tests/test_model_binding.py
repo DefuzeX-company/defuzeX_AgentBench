@@ -58,3 +58,24 @@ def test_email_agent_declares_model_contract(repo_root: Path) -> None:
         "OPENAI_API_KEY": "run-token",
         "OPENAI_MODEL": "gpt-4.1",
     }
+
+
+def test_customer_support_agent_declares_llm_model_contract(repo_root: Path) -> None:
+    agent_root = (
+        repo_root / "resources" / "agents" / "05-langgraph-customer-support-agent"
+    )
+    environ = {"OPENAI_API_KEY": "upstream-secret"}
+
+    binding = ModelBinding.from_agent_dir(
+        agent_root,
+        secret_resolver=EnvironmentSecretResolver(environ),
+        environ=environ,
+    )
+
+    assert binding is not None
+    assert binding.provider.model == "gpt-4.1-mini"
+    assert binding.agent_environment("http://gateway:8080", "run-token") == {
+        "LLM_BASE_URL": "http://gateway:8080/v1",
+        "LLM_API_KEY": "run-token",
+        "LLM_MODEL": "gpt-4.1-mini",
+    }

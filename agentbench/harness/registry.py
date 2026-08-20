@@ -48,6 +48,18 @@ class AgentRegistry:
         """Return enabled agents only."""
         return tuple(agent for agent in self._agents.values() if agent.enabled)
 
+    def enabled_with_status(self, status: str) -> tuple[AgentRegistration, ...]:
+        """Return enabled agents with one registry lifecycle status."""
+        return tuple(
+            agent
+            for agent in self._agents.values()
+            if agent.enabled and agent.status == status
+        )
+
+    def ready(self) -> tuple[AgentRegistration, ...]:
+        """Return enabled agents certified for default benchmark runs."""
+        return self.enabled_with_status("ready")
+
 
 def load_registry(registry_path: str | Path) -> AgentRegistry:
     """Read agent list from resources/registry.toml."""

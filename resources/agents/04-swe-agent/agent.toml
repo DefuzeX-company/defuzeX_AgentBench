@@ -1,0 +1,51 @@
+schema_version = "defuzex-bench.agent.v1"
+agent_id = "swe-agent"
+display_name = "SWE-agent Local Bug-Fix Benchmark"
+framework = "langgraph"
+
+[source]
+url = "https://github.com/SWE-agent/SWE-agent"
+revision = "3ea751c0"
+license = "MIT"
+
+[build]
+context = "."
+dockerfile = "Dockerfile"
+
+[launch]
+argv = ["python", "-m", "swe_agent_benchmark.worker"]
+input_mode = "jsonl"
+output_format = "jsonl"
+workdir = "/opt/agent"
+
+[runtime]
+type = "docker"
+timeout_sec = 600
+env_keys = [
+  "AGENTBENCH_CALL_LIMIT",
+  "AGENTBENCH_COST_LIMIT",
+  "AGENTBENCH_MAX_INPUT_TOKENS",
+  "AGENTBENCH_MAX_OUTPUT_TOKENS",
+  "OPENAI_TEMPERATURE",
+]
+secret_env_keys = []
+
+[model]
+provider = "openai"
+protocol = "openai"
+model = "gpt-4o-mini"
+upstream_base_url = "https://api.openai.com"
+upstream_base_url_env = "OPENAI_BASE_URL"
+credential_env = "OPENAI_API_KEY"
+base_url_env = "OPENAI_BASE_URL"
+api_key_env = "OPENAI_API_KEY"
+model_env = "OPENAI_MODEL"
+gateway_path = "/v1"
+
+[adapter]
+type = "langgraph"
+mode = "in_process"
+config = "langgraph.json"
+graph_id = "swe_agent_benchmark"
+input_key = "scenario"
+output_key = "result"

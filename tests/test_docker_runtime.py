@@ -14,6 +14,14 @@ def test_docker_policy_contains_required_isolation_controls() -> None:
     assert any(value.startswith("--memory=") for value in arguments)
     assert any(value.startswith("--cpus=") for value in arguments)
     assert any(value.startswith("--pids-limit=") for value in arguments)
+    assert any(value.startswith("--tmpfs=/tmp:rw,") for value in arguments)
+    assert any("noexec" in value for value in arguments if value.startswith("--tmpfs=/tmp:"))
+    assert any(
+        value.startswith("--tmpfs=/run/agentbench-tools:rw,")
+        and "exec" in value
+        and "noexec" not in value
+        for value in arguments
+    )
 
 
 def test_docker_transport_serializes_frozen_sdk_payloads() -> None:

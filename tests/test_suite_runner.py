@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from agentbench.harness import (
@@ -165,7 +167,7 @@ def test_suite_runner_preserves_a_supplied_suite_id(
 def test_suite_runner_preserves_completed_cases_after_later_generation_failure(
     enabled_agents: tuple[AgentRegistration, ...],
 ) -> None:
-    agent = enabled_agents[0]
+    agent = replace(enabled_agents[0], case_count=3)
     fake = FakeBenchmarkRunner(
         {
             agent.agent_id: [

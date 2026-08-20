@@ -1,0 +1,80 @@
+# Certification
+
+Certification decides whether an adapting Agent is runnable enough to enter the
+default batch set.
+
+## Status Lifecycle
+
+Use this Registry state while integrating:
+
+```toml
+enabled = true
+status = "adapting"
+```
+
+Run:
+
+```powershell
+python -m agentbench certify <agent-id>
+```
+
+If every requested Case completes without invocation or runtime errors,
+AgentBench changes only that Agent's Registry entry:
+
+```toml
+status = "ready"
+```
+
+## Ready Versus Benchmark Score
+
+`ready` means the adapter works:
+
+- Docker builds and starts.
+- The worker receives SDK Inputs.
+- The model Gateway is reachable.
+- The Agent returns JSON-compatible output.
+- Every requested Case completed.
+- No `AgentInvocationError` or `DockerSessionError` occurred.
+
+`Judge FAIL` means the adapter ran, but the Agent output did not satisfy the
+benchmark. That is benchmark-quality work, not adapter-readiness work.
+
+Examples:
+
+```text
+Running Agent inputs and DefuzeX Judge... FAILED | AgentInvocationError
+Certification failed. Agent remains adapting.
+```
+
+```text
+Running Agent inputs and DefuzeX Judge... OK | Judge: issue
+Result: FAIL | cases=1/1
+Certification completed with benchmark failures. Agent is now ready.
+```
+
+```text
+Running Agent inputs and DefuzeX Judge... OK | Judge: pass
+Result: PASS | cases=1/1
+Certification passed. Agent is now ready.
+```
+
+## Artifacts
+
+`certify` always writes an append-only JSONL result under `results/`.
+
+Open it later:
+
+```powershell
+python -m agentbench view results\certify-<agent-id>-<timestamp>.jsonl
+```
+
+When diagnosing, inspect the first boundary that failed:
+
+| Stage | First files to inspect |
+| --- | --- |
+| SDK configuration | requirement file, `DEFUZEX_API_KEY`, provider selection |
+| Starting Agent | `agent.toml`, Dockerfile, package install, runtime paths |
+| Generating Case | requirement content, service response, sensitive-data rejection |
+| Running Agent inputs | worker stdout/stderr, input mapping, model Gateway, timeout |
+| Judge issue with completed Cases | public `output`, requirement criteria, Agent behavior |
+| Registry update | target `status` field and concurrent edits |

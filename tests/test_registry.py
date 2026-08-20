@@ -8,23 +8,32 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize(
-    ("agent_id", "directory", "case_count"),
+    ("agent_id", "directory", "enabled", "status", "case_count"),
     [
-        ("langgraph-new-project", "01-langgraph-new-project", 3),
-        ("langgraph-chat-agent", "02-langgraph-chat-agent", 5),
-        ("email-assistant", "03-email-assistant", 2),
+        ("langgraph-new-project", "01-langgraph-new-project", False, "ready", 1),
+        ("langgraph-chat-agent", "02-langgraph-chat-agent", False, "ready", 2),
+        ("email-assistant", "03-email-assistant", False, "ready", 1),
+        ("swe-agent", "04-swe-agent", True, "ready", 1),
+        (
+            "langgraph-customer-support-agent",
+            "05-langgraph-customer-support-agent",
+            True,
+            "adapting",
+            1,
+        ),
     ],
 )
-def test_registry_resolves_enabled_agents(
-    agent_id: str, directory: str, case_count: int
+def test_registry_resolves_registered_agents(
+    agent_id: str, directory: str, enabled: bool, status: str, case_count: int
 ) -> None:
     registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
 
-    agent = registry.find(agent_id)
+    agent = registry.find(agent_id, enabled_only=False)
 
     assert agent.agent_id == agent_id
+    assert agent.enabled is enabled
     assert agent.framework == "langgraph"
-    assert agent.status == "ready"
+    assert agent.status == status
     assert agent.case_count == case_count
     assert agent.path == REPO_ROOT / "resources" / "agents" / directory
     assert agent.path.joinpath("agent.toml").is_file()
@@ -40,6 +49,15 @@ def test_every_enabled_agent_has_an_sdk_requirement() -> None:
         requirement = REPO_ROOT / "resources" / "requirements" / f"{agent.agent_id}.md"
         assert requirement.is_file(), f"Missing SDK requirement: {requirement}"
         assert agent.requirement_path == requirement
+
+
+def test_ready_agents_are_the_default_runnable_subset() -> None:
+    registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
+
+    assert {agent.agent_id for agent in registry.ready()} == {"swe-agent"}
+    assert {agent.agent_id for agent in registry.enabled_with_status("adapting")} == {
+        "langgraph-customer-support-agent",
+    }
 
 
 def test_registry_defaults_case_count_to_one(tmp_path: Path) -> None:
