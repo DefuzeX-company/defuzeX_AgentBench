@@ -31,8 +31,14 @@ class FakeViewer:
 
 
 class FakeSuiteRunner:
-    def __init__(self, *, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        error: Exception | None = None,
+        result_status: str = "pass",
+    ) -> None:
         self.error = error
+        self.result_status = result_status
         self.calls: list[tuple[object, dict[str, object]]] = []
         self.suite_count = 0
 
@@ -70,7 +76,11 @@ class FakeSuiteRunner:
                         "FakeAdapter",
                     )
                 )
-            benchmark = benchmark_result(agent.agent_id, with_step=True)
+            benchmark = benchmark_result(
+                agent.agent_id,
+                status=self.result_status,
+                with_step=True,
+            )
             step_start = kwargs.get("on_step_start")
             if callable(step_start):
                 step_start(
@@ -98,7 +108,7 @@ class FakeSuiteRunner:
 
 
 def test_cli_detects_agent_and_accepts_yes(
-    enabled_agents: tuple[AgentRegistration, ...],
+    ready_agents: tuple[AgentRegistration, ...],
 ) -> None:
     """Check CLI prints agents and accepts yes."""
     output: list[str] = []
@@ -117,21 +127,25 @@ def test_cli_detects_agent_and_accepts_yes(
     assert len(runner.calls) == 1
     assert prompts == ["Continue? [yes/no]: "]
     assert output[0] == DEFUZE_LOGO
-    for agent in enabled_agents:
+    for agent in ready_agents:
         assert any(agent.agent_id in line for line in output)
         assert any(f"cases: {agent.case_count}" in line for line in output)
-    assert any("Running: [1/3] langgraph-new-project" in line for line in output)
+    assert any(
+        f"Running: [1/{len(ready_agents)}] langgraph-new-project" in line
+        for line in output
+    )
     assert any(f"{ANSI_GREEN}OK{ANSI_RESET}" in line for line in output)
     assert output[-1] == (
-        f"\nSuite complete: {len(enabled_agents)} passed, 0 failed, 0 skipped, "
-        f"{len(enabled_agents)} selected."
+        f"\nSuite complete: {len(ready_agents)} passed, 0 failed, 0 skipped, "
+        f"{len(ready_agents)} selected."
     )
-    _, kwargs = runner.calls[0]
+    selected, kwargs = runner.calls[0]
+    assert selected == ready_agents
     assert kwargs["allow_local"] is True
     assert kwargs["track_files"] is False
     assert delays == [
         LOGO_PAUSE_SECONDS,
-        *([AGENT_REVEAL_DELAY_SECONDS] * (len(enabled_agents) + 1)),
+        *([AGENT_REVEAL_DELAY_SECONDS] * (len(ready_agents) + 1)),
     ]
 
 
@@ -260,30 +274,30 @@ def test_cli_parses_output_argument(monkeypatch, tmp_path) -> None:
     calls: list[dict[str, object]] = []
     output_path = tmp_path / "result.json"
 
-    def fake_main(**kwargs):  # type: ignore[no-untyped-def]
+    def fake_run(**kwargs):  # type: ignore[no-untyped-def]
         calls.append(kwargs)
         return 7
 
-    cli_main_module = importlib.import_module("agentbench.cli.main")
-    monkeypatch.setattr(cli_main_module, "main", fake_main)
+    monkeypatch.setattr("agentbench.cli.features.run.run", fake_run)
 
     assert cli(["--output", str(output_path)]) == 7
     assert calls == [{"output_path": str(output_path)}]
 
+    assert cli(["run", "--output", str(output_path)]) == 7
+    assert calls[-1] == {"output_path": str(output_path)}
+
 
 def test_cli_dispatches_view_command(monkeypatch, tmp_path) -> None:
-    calls: list[list[str]] = []
+    calls: list[tuple[str, str, int]] = []
     result_log = tmp_path / "result.jsonl"
 
-    def fake_view_cli(argv):  # type: ignore[no-untyped-def]
-        calls.append(list(argv))
-        return 9
+    def fake_serve(path, *, host, port):  # type: ignore[no-untyped-def]
+        calls.append((str(path), host, port))
 
-    cli_main_module = importlib.import_module("agentbench.cli.main")
-    monkeypatch.setattr(cli_main_module, "view_cli", fake_view_cli)
+    monkeypatch.setattr("agentbench.cli.features.view.serve_result_log", fake_serve)
 
-    assert cli(["view", str(result_log), "--port", "9000"]) == 9
-    assert calls == [[str(result_log), "--port", "9000"]]
+    assert cli(["view", str(result_log), "--port", "9000"]) == 0
+    assert calls == [(str(result_log), "127.0.0.1", 9000)]
 
 
 def test_legacy_console_entry_dispatches_cli_args(monkeypatch, tmp_path) -> None:

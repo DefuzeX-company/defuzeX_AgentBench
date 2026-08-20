@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 import threading
-from argparse import ArgumentParser
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Sequence
 from urllib.parse import quote, unquote, urlparse
 
 DEFAULT_HOST = "127.0.0.1"
@@ -30,22 +28,6 @@ class RunningViewer:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=2)
-
-
-def view_cli(argv: Sequence[str] | None = None) -> int:
-    """Run the local result viewer server."""
-
-    parser = ArgumentParser(
-        prog="agentbench view",
-        description="Serve a local AgentBench result viewer.",
-    )
-    parser.add_argument("result_log", help="Path to an AgentBench .jsonl result log.")
-    parser.add_argument("--host", default=DEFAULT_HOST)
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    args = parser.parse_args(argv)
-
-    serve_result_log(args.result_log, host=args.host, port=args.port)
-    return 0
 
 
 def serve_result_log(

@@ -23,3 +23,8 @@ def starter_agent(registry: AgentRegistry) -> AgentRegistration:
 @pytest.fixture(scope="session")
 def enabled_agents(registry: AgentRegistry) -> tuple[AgentRegistration, ...]:
     return registry.enabled()
+
+
+@pytest.fixture(scope="session")
+def ready_agents(registry: AgentRegistry) -> tuple[AgentRegistration, ...]:
+    return registry.ready()
