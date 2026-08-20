@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
@@ -14,12 +16,17 @@ GATEWAY_CONTEXT = REPO_ROOT / "services" / "model-gateway"
 GATEWAY_SERVICE_SRC = GATEWAY_CONTEXT / "src"
 sys.path.insert(0, str(GATEWAY_SERVICE_SRC))
 
+from defuzex_model_gateway.protocols import (  # noqa: E402
+    GatewayAuthenticationError,
+    ProtocolRegistry,
+    get_protocol,
+)
+
 from agentbench.runtime.docker.gateway_image import (  # noqa: E402
     LocalGatewayImageProvider,
     default_gateway_image_provider,
 )
 from agentbench.runtime.modelgateway import StaticGatewayImageProvider  # noqa: E402
-from defuzex_model_gateway.protocols import ProtocolRegistry  # noqa: E402
 
 
 class RecordingImageBuilder:
@@ -98,3 +105,31 @@ def test_protocol_registry_accepts_a_trusted_extension() -> None:
         gateway_token="run-token",
         upstream_api_key="provider-key",
     ) == ("/generate", {"X-Custom-Key": "provider-key"})
+
+
+def test_openai_protocol_replaces_the_run_token_with_upstream_key() -> None:
+    protocol = get_protocol("openai")
+
+    path, headers = protocol.authorize(
+        "/v1/chat/completions",
+        {
+            "Authorization": "Bearer run-token",
+            "Content-Type": "application/json",
+        },
+        gateway_token="run-token",
+        upstream_api_key="provider-secret",
+    )
+
+    assert path == "/v1/chat/completions"
+    assert headers["Authorization"] == "Bearer provider-secret"
+    assert headers["Content-Type"] == "application/json"
+
+
+def test_model_protocol_rejects_an_invalid_run_token() -> None:
+    with pytest.raises(GatewayAuthenticationError):
+        get_protocol("openai").authorize(
+            "/v1/chat/completions",
+            {"Authorization": "Bearer wrong"},
+            gateway_token="run-token",
+            upstream_api_key="provider-secret",
+        )

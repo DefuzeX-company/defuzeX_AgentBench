@@ -1,4 +1,3 @@
-from agentbench.cli.main import main
+from agentbench.cli.main import cli
 
-
-raise SystemExit(main())
+raise SystemExit(cli())

@@ -1,29 +1,18 @@
-from dataclasses import dataclass
-from pathlib import Path
+import pytest
 
 from agentbench.harness import (
+    AgentRegistration,
     BenchmarkProgress,
     BenchmarkRunner,
     ProviderSelectionError,
-    load_registry,
 )
+from tests.support.results import FakeReport
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
-
-@dataclass(frozen=True)
 class FakeInput:
-    input_id: str
-    payload: object
-
-
-@dataclass(frozen=True)
-class FakeReport:
-    status: str = "pass"
-    confidence: object = 1.0
-    issues: tuple[object, ...] = ()
-    evidence_gaps: tuple[object, ...] = ()
+    def __init__(self, input_id: str, payload: object) -> None:
+        self.input_id = input_id
+        self.payload = payload
 
 
 class FakeSDKRun:
@@ -74,16 +63,30 @@ class FailingRunFactory:
         raise RuntimeError("server unavailable")
 
 
-def registered_agent():  # type: ignore[no-untyped-def]
-    registry = load_registry(REPO_ROOT / "resources" / "registry.toml")
-    return registry.find("langgraph-new-project")
+class FailingSubmitSDKRun(FakeSDKRun):
+    def submit(
+        self,
+        output: object = None,
+        *,
+        status: str = "completed",
+        error: str | None = None,
+    ) -> FakeReport:
+        del output, status, error
+        raise RuntimeError("judge unavailable")
 
 
-def test_benchmark_runner_drives_sdk_handshake() -> None:
-    registration = registered_agent()
+class FailingSubmitRunFactory:
+    def __call__(self, **kwargs: object) -> FakeSDKRun:
+        del kwargs
+        return FailingSubmitSDKRun()
+
+
+def test_benchmark_runner_drives_sdk_handshake(
+    starter_agent: AgentRegistration,
+) -> None:
     sdk_run = FakeSDKRun()
 
-    result = BenchmarkRunner().run(registration, sdk_run)
+    result = BenchmarkRunner().run(starter_agent, sdk_run)
 
     assert result.passed
     assert result.agent_id == "langgraph-new-project"
@@ -95,7 +98,9 @@ def test_benchmark_runner_drives_sdk_handshake() -> None:
     assert result.steps[0].invocation.output == "DEFUZEX_AGENT_READY"
 
 
-def test_official_mode_uses_standard_environment_key_and_sdk_judge() -> None:
+def test_official_mode_uses_standard_environment_key_and_sdk_judge(
+    starter_agent: AgentRegistration,
+) -> None:
     factory = CapturingRunFactory()
     runner = BenchmarkRunner(
         sdk_run_factory=factory,
@@ -103,7 +108,7 @@ def test_official_mode_uses_standard_environment_key_and_sdk_judge() -> None:
     )
 
     result = runner.run_defuzex(
-        registered_agent(),
+        starter_agent,
         allow_local=True,
         track_files=False,
     )
@@ -111,14 +116,15 @@ def test_official_mode_uses_standard_environment_key_and_sdk_judge() -> None:
     assert result.provider_mode == "official"
     assert factory.kwargs is not None
     assert factory.kwargs["api_key"] == "dfx_test"
-    assert factory.kwargs["requirement_path"] == (
-        REPO_ROOT / "resources" / "requirements" / "langgraph-new-project.md"
-    )
+    assert factory.kwargs["requirement_path"] == starter_agent.requirement_path
+    assert "max_inputs" not in factory.kwargs
     assert "case_provider" not in factory.kwargs
     assert "judge_provider" not in factory.kwargs
 
 
-def test_benchmark_runner_emits_real_lifecycle_order() -> None:
+def test_benchmark_runner_emits_real_lifecycle_order(
+    starter_agent: AgentRegistration,
+) -> None:
     factory = CapturingRunFactory()
     events: list[BenchmarkProgress] = []
     runner = BenchmarkRunner(
@@ -127,7 +133,7 @@ def test_benchmark_runner_emits_real_lifecycle_order() -> None:
     )
 
     runner.run_defuzex(
-        registered_agent(),
+        starter_agent,
         allow_local=True,
         track_files=False,
         on_progress=events.append,
@@ -145,24 +151,78 @@ def test_benchmark_runner_emits_real_lifecycle_order() -> None:
     assert events[-1].detail == "Judge: pass"
 
 
-def test_benchmark_runner_reports_case_generation_failure() -> None:
+def test_benchmark_runner_emits_step_callbacks(
+    starter_agent: AgentRegistration,
+) -> None:
+    factory = CapturingRunFactory()
+    started: list[tuple[str, str, object]] = []
+    completed: list[tuple[str, str, object]] = []
+    runner = BenchmarkRunner(
+        sdk_run_factory=factory,
+        environ={"DEFUZEX_API_KEY": "dfx_test"},
+    )
+
+    runner.run_defuzex(
+        starter_agent,
+        allow_local=True,
+        track_files=False,
+        on_step_start=lambda agent_id, input_id, payload: started.append(
+            (agent_id, input_id, payload)
+        ),
+        on_step_complete=lambda agent_id, step: completed.append(
+            (agent_id, step.input_id, step.invocation.output)
+        ),
+    )
+
+    assert started == [("langgraph-new-project", "input_test", "DEFUZEX_AGENT_READY")]
+    assert completed == [("langgraph-new-project", "input_test", "DEFUZEX_AGENT_READY")]
+
+
+def test_benchmark_runner_emits_step_failure_after_judge_error(
+    starter_agent: AgentRegistration,
+) -> None:
+    failures = []
+    runner = BenchmarkRunner(
+        sdk_run_factory=FailingSubmitRunFactory(),
+        environ={"DEFUZEX_API_KEY": "dfx_test"},
+    )
+
+    with pytest.raises(RuntimeError, match="judge unavailable"):
+        runner.run_defuzex(
+            starter_agent,
+            allow_local=True,
+            track_files=False,
+            on_step_failure=lambda agent_id, failure: failures.append(
+                (agent_id, failure)
+            ),
+        )
+
+    assert len(failures) == 1
+    agent_id, failure = failures[0]
+    assert agent_id == "langgraph-new-project"
+    assert failure.input_id == "input_test"
+    assert failure.payload == "DEFUZEX_AGENT_READY"
+    assert failure.output == "DEFUZEX_AGENT_READY"
+    assert failure.error_type == "RuntimeError"
+    assert failure.error_message == "judge unavailable"
+
+
+def test_benchmark_runner_reports_case_generation_failure(
+    starter_agent: AgentRegistration,
+) -> None:
     events: list[BenchmarkProgress] = []
     runner = BenchmarkRunner(
         sdk_run_factory=FailingRunFactory(),
         environ={"DEFUZEX_API_KEY": "dfx_test"},
     )
 
-    try:
+    with pytest.raises(RuntimeError, match="server unavailable"):
         runner.run_defuzex(
-            registered_agent(),
+            starter_agent,
             allow_local=True,
             track_files=False,
             on_progress=events.append,
         )
-    except RuntimeError as exc:
-        assert str(exc) == "server unavailable"
-    else:
-        raise AssertionError("BenchmarkRunner swallowed Case generation failure")
 
     assert [(event.stage, event.status) for event in events] == [
         ("agent_start", "started"),
@@ -173,7 +233,9 @@ def test_benchmark_runner_reports_case_generation_failure() -> None:
     assert events[-1].detail == "RuntimeError: server unavailable"
 
 
-def test_explicit_requirement_path_overrides_registered_default() -> None:
+def test_explicit_requirement_path_overrides_registered_default(
+    starter_agent: AgentRegistration,
+) -> None:
     factory = CapturingRunFactory()
     runner = BenchmarkRunner(
         sdk_run_factory=factory,
@@ -181,7 +243,7 @@ def test_explicit_requirement_path_overrides_registered_default() -> None:
     )
 
     runner.run_defuzex(
-        registered_agent(),
+        starter_agent,
         requirement_path="override-requirement.md",
         allow_local=True,
         track_files=False,
@@ -191,7 +253,9 @@ def test_explicit_requirement_path_overrides_registered_default() -> None:
     assert factory.kwargs["requirement_path"] == "override-requirement.md"
 
 
-def test_explicit_provider_pair_selects_local_mode() -> None:
+def test_explicit_provider_pair_selects_local_mode(
+    starter_agent: AgentRegistration,
+) -> None:
     factory = CapturingRunFactory()
     case_provider = object()
     judge_provider = object()
@@ -201,7 +265,7 @@ def test_explicit_provider_pair_selects_local_mode() -> None:
     )
 
     result = runner.run_defuzex(
-        registered_agent(),
+        starter_agent,
         case_provider=case_provider,
         judge_provider=judge_provider,
         max_inputs=1,
@@ -213,42 +277,42 @@ def test_explicit_provider_pair_selects_local_mode() -> None:
     assert factory.kwargs is not None
     assert factory.kwargs["case_provider"] is case_provider
     assert factory.kwargs["judge_provider"] is judge_provider
+    assert factory.kwargs["max_inputs"] == 1
     assert "api_key" not in factory.kwargs
     assert "requirement_path" not in factory.kwargs
 
 
-def test_missing_key_and_providers_stops_before_run_creation() -> None:
+def test_missing_key_and_providers_stops_before_run_creation(
+    starter_agent: AgentRegistration,
+) -> None:
     factory = CapturingRunFactory()
     runner = BenchmarkRunner(sdk_run_factory=factory, environ={})
 
-    try:
+    with pytest.raises(ProviderSelectionError, match="DEFUZEX_API_KEY"):
         runner.run_defuzex(
-            registered_agent(),
+            starter_agent,
             requirement_path="requirement.md",
             allow_local=True,
         )
-    except ProviderSelectionError as exc:
-        assert "DEFUZEX_API_KEY" in str(exc)
-    else:
-        raise AssertionError("Runner accepted missing official and local Providers")
 
     assert factory.kwargs is None
 
 
-def test_partial_local_provider_pair_is_rejected() -> None:
+def test_partial_local_provider_pair_is_rejected(
+    starter_agent: AgentRegistration,
+) -> None:
     factory = CapturingRunFactory()
     runner = BenchmarkRunner(sdk_run_factory=factory, environ={})
 
-    try:
+    with pytest.raises(
+        ProviderSelectionError,
+        match="both case_provider and judge_provider",
+    ):
         runner.run_defuzex(
-            registered_agent(),
+            starter_agent,
             case_provider=object(),
             max_inputs=1,
             allow_local=True,
         )
-    except ProviderSelectionError as exc:
-        assert "both case_provider and judge_provider" in str(exc)
-    else:
-        raise AssertionError("Runner accepted a partial local Provider pair")
 
     assert factory.kwargs is None

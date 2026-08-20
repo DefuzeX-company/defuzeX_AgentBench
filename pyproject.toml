@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agentbench = "agentbench.cli.main:main"
+agentbench = "agentbench.cli.main:cli"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -22,3 +22,4 @@ include = ["agentbench*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]

@@ -1,0 +1,325 @@
+"""Local result viewer server for AgentBench JSONL artifacts."""
+
+from __future__ import annotations
+
+import json
+import threading
+from argparse import ArgumentParser
+from dataclasses import dataclass
+from http import HTTPStatus
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Sequence
+from urllib.parse import quote, unquote, urlparse
+
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+WEB_ROOT = Path(__file__).resolve().parents[2] / "web"
+
+
+@dataclass(frozen=True)
+class RunningViewer:
+    """Background local viewer server."""
+
+    server: ThreadingHTTPServer
+    thread: threading.Thread
+    base_url: str
+    url: str
+
+    def stop(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+
+
+def view_cli(argv: Sequence[str] | None = None) -> int:
+    """Run the local result viewer server."""
+
+    parser = ArgumentParser(
+        prog="agentbench view",
+        description="Serve a local AgentBench result viewer.",
+    )
+    parser.add_argument("result_log", help="Path to an AgentBench .jsonl result log.")
+    parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    args = parser.parse_args(argv)
+
+    serve_result_log(args.result_log, host=args.host, port=args.port)
+    return 0
+
+
+def serve_result_log(
+    result_log: str | Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> None:
+    """Serve the static viewer and result-log API until interrupted."""
+
+    path = Path(result_log).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Result log not found: {path}")
+
+    server = create_viewer_server(path, host=host, port=port)
+    base_url = f"http://{host}:{server.server_port}"
+    url = _locked_viewer_url(base_url, _result_log_suite_id(path))
+    print(f"View: {url}")
+    print(f"Result log: {path}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nViewer stopped.")
+    finally:
+        server.server_close()
+
+
+def start_viewer_server(
+    result_log: str | Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> RunningViewer:
+    """Start the result viewer in a daemon thread."""
+
+    path = Path(result_log).resolve()
+    suite_id = _result_log_suite_id(path)
+    server = create_viewer_server(path, host=host, port=port)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://{host}:{server.server_port}"
+    return RunningViewer(
+        server=server,
+        thread=thread,
+        base_url=base_url,
+        url=_locked_viewer_url(base_url, suite_id),
+    )
+
+
+def create_viewer_server(
+    result_log: Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+) -> ThreadingHTTPServer:
+    """Create a local viewer server, falling back to a free port if needed."""
+
+    handler = build_viewer_handler(
+        result_log, expected_suite_id=_result_log_suite_id(result_log)
+    )
+    try:
+        return ThreadingHTTPServer((host, port), handler)
+    except OSError:
+        if port == 0:
+            raise
+        return ThreadingHTTPServer((host, 0), handler)
+
+
+def build_viewer_handler(
+    result_log: Path, *, expected_suite_id: str | None
+) -> type[SimpleHTTPRequestHandler]:
+    """Build a request handler bound to one JSONL result artifact."""
+
+    class ViewerHandler(SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            super().__init__(*args, directory=str(WEB_ROOT), **kwargs)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+        def do_GET(self) -> None:
+            parsed = urlparse(self.path)
+            result_api_path = _suite_result_api_path(expected_suite_id)
+            if parsed.path == result_api_path:
+                self._send_json(parse_result_log(result_log))
+                return
+            if parsed.path == "/api/result" or parsed.path.startswith(
+                "/api/suites/"
+            ):
+                self._send_suite_mismatch()
+                return
+            if parsed.path == "/api/health":
+                self._send_json({"ok": True})
+                return
+
+            suite_path = _suite_view_path(expected_suite_id)
+            if parsed.path.rstrip("/") == suite_path.rstrip("/"):
+                self.path = "/index.html"
+                super().do_GET()
+                return
+            if parsed.path in {"", "/"} and expected_suite_id is not None:
+                self._send_suite_mismatch()
+                return
+
+            self.path = _static_path(parsed.path)
+            super().do_GET()
+
+        def _send_suite_mismatch(self) -> None:
+            self._send_json(
+                {
+                    "error": "Suite ID does not match this result viewer.",
+                    "suite_id": expected_suite_id,
+                },
+                status=HTTPStatus.CONFLICT,
+            )
+
+        def _send_json(
+            self, payload: object, *, status: HTTPStatus = HTTPStatus.OK
+        ) -> None:
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+    return ViewerHandler
+
+
+def parse_result_log(path: str | Path) -> dict[str, object]:
+    """Parse a JSONL result log into the shape consumed by the viewer."""
+
+    result_path = Path(path)
+    events: list[dict[str, object]] = []
+    parse_errors: list[dict[str, object]] = []
+
+    for line_number, line in enumerate(
+        result_path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            parse_errors.append({"line": line_number, "message": exc.msg})
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+        else:
+            parse_errors.append(
+                {"line": line_number, "message": "Expected JSON object"}
+            )
+
+    suite_id: str | None = None
+    selected_agent_ids: list[str] = []
+    agents: list[dict[str, object]] = []
+    step_events_by_agent: dict[str, list[dict[str, object]]] = {}
+    summary: dict[str, object] | None = None
+    suite_error: dict[str, object] | None = None
+
+    for event in events:
+        event_type = event.get("event")
+        if event_type == "run_started":
+            event_suite_id = event.get("suite_id")
+            if isinstance(event_suite_id, str):
+                suite_id = event_suite_id
+            selected = event.get("selected_agent_ids")
+            if isinstance(selected, list):
+                selected_agent_ids = [str(agent_id) for agent_id in selected]
+        elif event_type == "agent_completed":
+            item = event.get("item")
+            if isinstance(item, dict):
+                agents.append(item)
+        elif event_type in {"step_started", "step_completed", "step_failed"}:
+            agent_id = event.get("agent_id")
+            if isinstance(agent_id, str):
+                step_events_by_agent.setdefault(agent_id, []).append(event)
+        elif event_type == "suite_completed":
+            event_summary = event.get("summary")
+            if isinstance(event_summary, dict):
+                summary = event_summary
+        elif event_type == "suite_failed":
+            error = event.get("error")
+            if isinstance(error, dict):
+                suite_error = error
+
+    state = "complete" if summary is not None else "running_or_interrupted"
+    if suite_error is not None:
+        state = "failed"
+
+    agents = _merge_step_events(agents, step_events_by_agent)
+
+    return {
+        "path": str(result_path),
+        "suite_id": suite_id,
+        "state": state,
+        "selected_agent_ids": selected_agent_ids,
+        "agents": agents,
+        "summary": summary,
+        "suite_error": suite_error,
+        "parse_errors": parse_errors,
+        "event_count": len(events),
+    }
+
+
+def _result_log_suite_id(path: Path) -> str | None:
+    """Read the Suite ID from the first valid run-start event."""
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict) or event.get("event") != "run_started":
+            continue
+        suite_id = event.get("suite_id")
+        return suite_id if isinstance(suite_id, str) else None
+    return None
+
+
+def _locked_viewer_url(base_url: str, suite_id: str | None) -> str:
+    if suite_id is None:
+        return base_url
+    return f"{base_url}{_suite_view_path(suite_id)}"
+
+
+def _suite_view_path(suite_id: str | None) -> str:
+    if suite_id is None:
+        return "/"
+    return f"/suite/{quote(suite_id, safe='')}/"
+
+
+def _suite_result_api_path(suite_id: str | None) -> str:
+    if suite_id is None:
+        return "/api/result"
+    return f"/api/suites/{quote(suite_id, safe='')}/result"
+
+
+def _merge_step_events(
+    agents: list[dict[str, object]],
+    step_events_by_agent: dict[str, list[dict[str, object]]],
+) -> list[dict[str, object]]:
+    merged: list[dict[str, object]] = []
+    seen: set[str] = set()
+
+    for item in agents:
+        agent_id = item.get("agent_id")
+        if isinstance(agent_id, str):
+            item = dict(item)
+            item["step_events"] = step_events_by_agent.get(agent_id, [])
+            seen.add(agent_id)
+        merged.append(item)
+
+    for agent_id, step_events in step_events_by_agent.items():
+        if agent_id in seen:
+            continue
+        merged.append(
+            {
+                "agent_id": agent_id,
+                "benchmark": None,
+                "error": {
+                    "type": "Incomplete",
+                    "message": "Agent did not produce a final suite result.",
+                },
+                "step_events": step_events,
+            }
+        )
+
+    return merged
+
+
+def _static_path(path: str) -> str:
+    static_path = unquote(path)
+    if static_path in {"", "/"}:
+        return "/index.html"
+    return static_path

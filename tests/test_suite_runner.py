@@ -1,38 +1,13 @@
-from dataclasses import dataclass
-from pathlib import Path
+import pytest
 
 from agentbench.harness import (
+    AgentRegistration,
     BenchmarkProgress,
-    BenchmarkResult,
     ProviderSelectionError,
     SuiteConfigurationError,
     SuiteRunner,
-    load_registry,
 )
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
-
-@dataclass(frozen=True)
-class FakeReport:
-    status: str
-    confidence: object = 1.0
-    issues: tuple[object, ...] = ()
-    evidence_gaps: tuple[object, ...] = ()
-
-
-def benchmark_result(agent_id: str, *, status: str = "pass") -> BenchmarkResult:
-    return BenchmarkResult(
-        agent_id=agent_id,
-        adapter_name="FakeAdapter",
-        run_id=f"run_{agent_id}",
-        run_state="report_ready",
-        report=FakeReport(status),
-        steps=(),
-        history_count=1,
-        provider_mode="official",
-    )
+from tests.support.results import benchmark_result
 
 
 class FakeBenchmarkRunner:
@@ -46,6 +21,7 @@ class FakeBenchmarkRunner:
         self.validation_error = validation_error
         self.calls: list[tuple[str, dict[str, object]]] = []
         self.validation_calls: list[str] = []
+        self.outcome_positions: dict[str, int] = {}
 
     def validate_defuzex(self, registration, **kwargs):  # type: ignore[no-untyped-def]
         del kwargs
@@ -57,23 +33,28 @@ class FakeBenchmarkRunner:
     def run_defuzex(self, registration, **kwargs):  # type: ignore[no-untyped-def]
         self.calls.append((registration.agent_id, kwargs))
         outcome = self.outcomes[registration.agent_id]
+        if isinstance(outcome, list):
+            position = self.outcome_positions.get(registration.agent_id, 0)
+            self.outcome_positions[registration.agent_id] = position + 1
+            outcome = outcome[position]
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
 
 
-def registered_agents():  # type: ignore[no-untyped-def]
-    return load_registry(REPO_ROOT / "resources" / "registry.toml").enabled()
-
-
-def test_suite_runner_runs_every_agent_and_aggregates_results() -> None:
-    agents = registered_agents()
+def test_suite_runner_runs_every_agent_and_aggregates_results(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agents = enabled_agents
     fake = FakeBenchmarkRunner(
         {agent.agent_id: benchmark_result(agent.agent_id) for agent in agents}
     )
     started: list[str] = []
     completed: list[str] = []
     events: list[BenchmarkProgress] = []
+    step_started = object()
+    step_completed = object()
+    step_failed = object()
 
     result = SuiteRunner(benchmark_runner=fake).run_defuzex(  # type: ignore[arg-type]
         agents,
@@ -85,10 +66,16 @@ def test_suite_runner_runs_every_agent_and_aggregates_results() -> None:
         ),
         on_agent_complete=lambda item: completed.append(item.agent_id),
         on_progress=events.append,
+        on_step_start=step_started,  # type: ignore[arg-type]
+        on_step_complete=step_completed,  # type: ignore[arg-type]
+        on_step_failure=step_failed,  # type: ignore[arg-type]
     )
 
     expected_ids = [agent.agent_id for agent in agents]
-    assert [agent_id for agent_id, _ in fake.calls] == expected_ids
+    expected_run_ids = [
+        agent.agent_id for agent in agents for _ in range(agent.case_count)
+    ]
+    assert [agent_id for agent_id, _ in fake.calls] == expected_run_ids
     assert started == [
         f"{index}/{len(agents)}:{agent_id}"
         for index, agent_id in enumerate(expected_ids, start=1)
@@ -105,14 +92,22 @@ def test_suite_runner_runs_every_agent_and_aggregates_results() -> None:
     assert result.passed_count == len(agents)
     assert result.failed_count == 0
     assert result.skipped_count == 0
+    assert [item.completed_case_count for item in result.items] == [
+        agent.case_count for agent in agents
+    ]
     for _, kwargs in fake.calls:
         assert kwargs["api_key"] == "dfx_test"
         assert kwargs["allow_local"] is True
         assert kwargs["track_files"] is False
+        assert kwargs["on_step_start"] is step_started
+        assert kwargs["on_step_complete"] is step_completed
+        assert kwargs["on_step_failure"] is step_failed
 
 
-def test_suite_runner_records_agent_error_and_continues() -> None:
-    agents = registered_agents()
+def test_suite_runner_records_agent_error_and_continues(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agents = enabled_agents
     outcomes: dict[str, object] = {
         agent.agent_id: benchmark_result(agent.agent_id) for agent in agents
     }
@@ -130,8 +125,72 @@ def test_suite_runner_records_agent_error_and_continues() -> None:
     assert failed.error_message == "container failed"
 
 
-def test_suite_runner_can_stop_after_first_failed_benchmark() -> None:
-    agents = registered_agents()
+def test_suite_runner_creates_a_new_id_for_each_execution(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agent = enabled_agents[0]
+    fake = FakeBenchmarkRunner(
+        {
+            agent.agent_id: [
+                benchmark_result(agent.agent_id)
+                for _ in range(agent.case_count * 2)
+            ]
+        }
+    )
+    runner = SuiteRunner(benchmark_runner=fake)  # type: ignore[arg-type]
+
+    first = runner.run_defuzex((agent,))
+    second = runner.run_defuzex((agent,))
+
+    assert first.suite_id.startswith("suite_")
+    assert second.suite_id.startswith("suite_")
+    assert first.suite_id != second.suite_id
+
+
+def test_suite_runner_preserves_a_supplied_suite_id(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agent = enabled_agents[0]
+    fake = FakeBenchmarkRunner(
+        {agent.agent_id: benchmark_result(agent.agent_id)}
+    )
+
+    result = SuiteRunner(benchmark_runner=fake).run_defuzex(  # type: ignore[arg-type]
+        (agent,), suite_id="suite_from_cli"
+    )
+
+    assert result.suite_id == "suite_from_cli"
+
+
+def test_suite_runner_preserves_completed_cases_after_later_generation_failure(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agent = enabled_agents[0]
+    fake = FakeBenchmarkRunner(
+        {
+            agent.agent_id: [
+                benchmark_result(agent.agent_id),
+                benchmark_result(agent.agent_id),
+                RuntimeError("no more cases"),
+            ]
+        }
+    )
+
+    result = SuiteRunner(benchmark_runner=fake).run_defuzex((agent,))  # type: ignore[arg-type]
+
+    item = result.items[0]
+    assert item.completed_case_count == 2
+    assert item.requested_case_count == 3
+    assert item.error_type == "RuntimeError"
+    assert item.error_message == "no more cases"
+    assert len(fake.calls) == 3
+    assert not item.passed
+
+
+def test_suite_runner_can_stop_after_first_failed_benchmark(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agents = enabled_agents
     outcomes = {
         agents[0].agent_id: benchmark_result(agents[0].agent_id, status="fail"),
         agents[1].agent_id: benchmark_result(agents[1].agent_id),
@@ -150,23 +209,21 @@ def test_suite_runner_can_stop_after_first_failed_benchmark() -> None:
     assert not result.passed
 
 
-def test_suite_runner_propagates_shared_provider_configuration_error() -> None:
-    agents = registered_agents()
+def test_suite_runner_propagates_shared_provider_configuration_error(
+    enabled_agents: tuple[AgentRegistration, ...],
+) -> None:
+    agents = enabled_agents
     events: list[BenchmarkProgress] = []
     fake = FakeBenchmarkRunner(
         {agent.agent_id: benchmark_result(agent.agent_id) for agent in agents},
         validation_error=ProviderSelectionError("missing provider"),
     )
 
-    try:
+    with pytest.raises(SuiteConfigurationError, match="missing provider"):
         SuiteRunner(benchmark_runner=fake).run_defuzex(  # type: ignore[arg-type]
             agents,
             on_progress=events.append,
         )
-    except SuiteConfigurationError as exc:
-        assert str(exc) == "missing provider"
-    else:
-        raise AssertionError("SuiteRunner swallowed a shared configuration error")
 
     assert len(fake.calls) == 0
     assert len(fake.validation_calls) == 1
@@ -178,9 +235,5 @@ def test_suite_runner_propagates_shared_provider_configuration_error() -> None:
 
 
 def test_suite_runner_rejects_an_empty_selection() -> None:
-    try:
+    with pytest.raises(ValueError, match="at least one Agent"):
         SuiteRunner().run_defuzex(())
-    except ValueError as exc:
-        assert "at least one Agent" in str(exc)
-    else:
-        raise AssertionError("SuiteRunner accepted an empty selection")

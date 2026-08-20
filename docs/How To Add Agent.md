@@ -254,6 +254,7 @@ enabled = true
 status = "adapting"
 framework = "langgraph"
 source = "https://github.com/example/my-langgraph-agent"
+case = 5
 ```
 
 Registry rules:
@@ -264,6 +265,8 @@ Registry rules:
 - Use `adapting` until the full benchmark passes, then change it to `ready`.
 - Supported status values are `planned`, `adapting`, `ready`, and `blocked`.
 - `framework` must currently be `langgraph`.
+- `case` is the number of independent SDK Cases AgentBench requests for this
+  Agent. It must be a positive integer and defaults to `1` when omitted.
 - The Registry derives the SDK requirement as
   `resources/requirements/<agent_id>.md`; do not add a separate path field or
   Agent-specific lookup branch.
