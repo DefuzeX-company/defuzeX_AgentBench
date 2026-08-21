@@ -43,13 +43,15 @@ python -m pip install -e .\defuzeX_AgentBench
 
 ### Internal SDK Build
 
-This repository currently depends on an internal DefuzeX SDK build. Until the
-SDK is published for normal package installation, clone the DefuzeX SDK
-repository next to `defuzeX_AgentBench` and install it into the same `.venv`:
+This repository currently depends on the internal DefuzeX SDK `dev` branch.
+Until the SDK is published for normal package installation, if `Defuze-SDK` has
+not been cloned locally yet, clone it from the SDK `dev` branch
+(`https://github.com/DefuzeX-company/Defuze-SDK/tree/dev`) next to
+`defuzeX_AgentBench`, then install it into the same `.venv`:
 
 ```powershell
 cd C:\Song_startup\benchmark
-git clone https://github.com/DefuzeX-company/Defuze-SDK.git
+git clone --branch dev --single-branch https://github.com/DefuzeX-company/Defuze-SDK.git
 python -m pip install -e .\Defuze-SDK
 python -m pip install -e .\defuzeX_AgentBench
 ```
