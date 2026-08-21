@@ -1,5 +1,14 @@
 # DefuzeX AgentBench
 
+![Python](https://img.shields.io/badge/Python-3.10%2B-8a008a)
+![License](https://img.shields.io/badge/License-MIT-0086c9)
+![Package](https://img.shields.io/badge/pypi%20package-0.1.0-2acb16)
+
+## News
+
+- AgentBench now runs registered LangGraph agents through the DefuzeX SDK
+  `get_input()` / `submit()` handshake.
+
 ## Overview
 
 DefuzeX AgentBench is a benchmark for evaluating AI agents on end-to-end tasks
@@ -16,6 +25,27 @@ AgentBench is designed to make Agent evaluation reproducible. Agents are
 declared in a registry, adapted through framework adapters such as LangGraph,
 certified from `adapting` to `ready`, and included in default benchmark runs only
 after certification succeeds.
+
+The current execution flow is:
+
+```text
+registry.toml
+-> SuiteRunner
+-> BenchmarkRunner
+-> DefuzeX SDK Run
+-> Agent Adapter / Runtime
+-> Judge Report
+```
+
+The repository includes:
+
+- `agentbench/cli`: terminal entry point and progress output.
+- `agentbench/harness`: SDK handshake, suite execution, results, and registry.
+- `agentbench/adapter`: framework-neutral adapter contract and LangGraph support.
+- `agentbench/runtime`: local and Docker runtime integration.
+- `resources/agents`: reproducible benchmark agent fixtures.
+- `services/model-gateway`: trusted proxy for model provider access in Docker
+  runs.
 
 ![DefuzeX AgentBench framework](figures/framework.png)
 
@@ -96,6 +126,18 @@ Without `--output`, AgentBench runs in the terminal and does not create a JSONL
 result artifact. With `--output`, AgentBench writes an append-only JSONL result
 file and starts the local viewer so you can refresh and inspect events while the
 benchmark is running.
+
+Set a DefuzeX API key when using official Case or Judge providers:
+
+```powershell
+$env:DEFUZEX_API_KEY = "dfx_<public-id>.<secret>"
+```
+
+Run the test suite:
+
+```powershell
+python -m pytest
+```
 
 For more agent-facing instructions, start with [AGENTS.md](AGENTS.md). The
 longer documentation guide is in [docs/AGENTS.md](docs/AGENTS.md).
