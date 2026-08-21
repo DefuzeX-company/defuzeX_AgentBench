@@ -6,14 +6,38 @@ repeatable AgentBench candidate. Do this before copying anything into
 
 ## Queues
 
+Before converting an Agent, create an AgentFactory workspace. This workspace
+keeps downloaded Agent copies, active conversions, review candidates, and
+Docker-accepted Agents separate from the AgentBench repository.
+
+Create the workspace from your benchmark workspace:
+
+```powershell
+mkdir AgentFactory
+mkdir AgentFactory\PrepareAgents
+mkdir AgentFactory\ProcessAgents
+mkdir AgentFactory\InreviewAgents
+mkdir AgentFactory\DoneAgents
+```
+
+The resulting structure should look like:
+
+```text
+AgentFactory/
+  PrepareAgents/
+  ProcessAgents/
+  InreviewAgents/
+  DoneAgents/
+```
+
 Use one Agent directory in exactly one queue:
 
 | Queue | Meaning |
 | --- | --- |
-| `PrepareAgents/<agent-name>/` | Downloaded source, not yet analyzed. |
-| `ProcessAgents/<agent-name>/` | Active conversion work. |
-| `InreviewAgents/<agent-name>/` | Code conversion done, awaiting review or Docker E2E. |
-| `DoneAgents/<agent-name>/` | Docker E2E passed; ready to copy into AgentBench. |
+| `AgentFactory/PrepareAgents/<agent-name>/` | Downloaded source, not yet analyzed. |
+| `AgentFactory/ProcessAgents/<agent-name>/` | Active conversion work. |
+| `AgentFactory/InreviewAgents/<agent-name>/` | Code conversion done, awaiting review or Docker E2E. |
+| `AgentFactory/DoneAgents/<agent-name>/` | Docker E2E passed; ready to copy into AgentBench. |
 
 Do not move a partial Agent directly into `resources/agents/`.
 
