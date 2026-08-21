@@ -24,6 +24,11 @@ If you need to add, port, or validate an Agent, read
 [`How To Add Agent.md`](./How%20To%20Add%20Agent.md). It is the short entry
 point for the onboarding flow and reading path.
 
+For the current internal beta, users must also download the DefuzeX SDK from
+[`Defuze-SDK` dev branch](https://github.com/DefuzeX-company/Defuze-SDK/tree/dev)
+and import it together with AgentBench in the same local workspace and Python
+environment.
+
 Continue reading based on the task scope:
 
 - A downloaded Agent has not been converted yet: read
