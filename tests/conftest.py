@@ -17,7 +17,7 @@ def registry(repo_root: Path) -> AgentRegistry:
 
 @pytest.fixture(scope="session")
 def starter_agent(registry: AgentRegistry) -> AgentRegistration:
-    return registry.find("langgraph-new-project")
+    return registry.find("langgraph-new-project", enabled_only=False)
 
 
 @pytest.fixture(scope="session")

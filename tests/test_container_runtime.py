@@ -100,7 +100,7 @@ def test_runtime_factory_selects_container_without_starting_docker(
         def start(self, agent):  # type: ignore[no-untyped-def]
             raise AssertionError("Runtime should remain lazy")
 
-    registration = registry.find("langgraph-chat-agent")
+    registration = registry.find("langgraph-chat-agent", enabled_only=False)
     factory = RuntimeFactory(docker_builder=NeverStartedRuntime)
 
     adapter = factory.create_adapter(

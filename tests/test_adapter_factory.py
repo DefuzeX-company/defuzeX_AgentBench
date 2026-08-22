@@ -15,7 +15,7 @@ from agentbench.harness.registry import AgentRegistration, AgentRegistry
 def test_factory_creates_registered_langgraph_adapter(
     registry: AgentRegistry,
 ) -> None:
-    agent = registry.find("langgraph-new-project")
+    agent = registry.find("langgraph-new-project", enabled_only=False)
 
     adapter = create_adapter(agent)
 

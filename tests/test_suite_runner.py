@@ -195,8 +195,10 @@ def test_suite_runner_can_stop_after_first_failed_benchmark(
     agents = enabled_agents
     outcomes = {
         agents[0].agent_id: benchmark_result(agents[0].agent_id, status="fail"),
-        agents[1].agent_id: benchmark_result(agents[1].agent_id),
-        agents[2].agent_id: benchmark_result(agents[2].agent_id),
+        **{
+            agent.agent_id: benchmark_result(agent.agent_id)
+            for agent in agents[1:]
+        },
     }
     fake = FakeBenchmarkRunner(outcomes)
 
