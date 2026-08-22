@@ -1,8 +1,28 @@
 # DefuzeX AgentBench
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-8a008a)
-![License](https://img.shields.io/badge/License-MIT-0086c9)
-![Package](https://img.shields.io/badge/pypi%20package-0.1.0-2acb16)
+<p align="center">
+  <img
+    alt="DefuzeX AgentBench"
+    src="figures/title.png"
+    width="720"
+    style="border-radius: 24px;"
+  >
+</p>
+
+<p align="center">
+  English |
+  <a href="otherLanguages/README.fr.md">Français</a> |
+  <a href="otherLanguages/README.ja.md">日本語</a> |
+  <a href="otherLanguages/README.zh-CN.md">中文简体</a> |
+  <a href="otherLanguages/README.zh-TW.md">中文繁體</a> |
+  <a href="otherLanguages/README.ko.md">한국어</a>
+</p>
+
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-8a008a">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-0086c9">
+  <img alt="Package" src="https://img.shields.io/badge/pypi%20package-0.1.0-2acb16">
+</p>
 
 ## News
 
