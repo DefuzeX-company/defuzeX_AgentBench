@@ -25,7 +25,7 @@ If you need to add, port, or validate an Agent, read
 point for the onboarding flow and reading path.
 
 For the current internal beta, users must also download the DefuzeX SDK from
-[`Defuze-SDK` dev branch](https://github.com/DefuzeX-company/Defuze-SDK/tree/dev)
+[`Defuze-SDK` dev branch](https://github.com/DefuzeX-AI/Defuze-SDK/tree/dev)
 and import it together with AgentBench in the same local workspace and Python
 environment.
 

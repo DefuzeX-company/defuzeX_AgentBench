@@ -77,12 +77,12 @@ python -m pip install -e .\defuzeX_AgentBench
 This repository currently depends on the internal DefuzeX SDK `dev` branch.
 Until the SDK is published for normal package installation, if `Defuze-SDK` has
 not been cloned locally yet, clone it from the SDK `dev` branch
-(`https://github.com/DefuzeX-company/Defuze-SDK/tree/dev`) next to
+(`https://github.com/DefuzeX-AI/Defuze-SDK/tree/dev`) next to
 `defuzeX_AgentBench`, then install it into the same `.venv`:
 
 ```powershell
 cd <workspace-root>
-git clone --branch dev --single-branch https://github.com/DefuzeX-company/Defuze-SDK.git
+git clone --branch dev --single-branch https://github.com/DefuzeX-AI/Defuze-SDK
 python -m pip install -e .\Defuze-SDK
 python -m pip install -e .\defuzeX_AgentBench
 ```
