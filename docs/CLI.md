@@ -288,7 +288,7 @@ The terminal prints the real URL and absolute result path:
 
 ```text
 View: http://127.0.0.1:8765/suite/suite_xxx/
-Result log: C:\...\result-20260820-162500.jsonl
+Result log: <absolute-path>\result-20260820-162500.jsonl
 ```
 
 Press `Ctrl+C` to stop the server. A missing result path raises an error

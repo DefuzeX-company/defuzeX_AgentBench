@@ -789,7 +789,7 @@ inside the local requirement file.
 Validate all repository requirements before contacting the official service:
 
 ```powershell
-..\langgraphTutorial\.venv\Scripts\python.exe -B -c `
+python -B -c `
   "from pathlib import Path; from defuzex.requirements import parse_requirement; [parse_requirement(path) for path in Path('resources/requirements').glob('*.md')]; print('Requirements valid')"
 ```
 
@@ -871,8 +871,8 @@ Keep real provider calls as explicitly selected integration tests.
 After installing pytest, run:
 
 ```powershell
-cd C:\Song_startup\benchmark\defuzeX_AgentBench
-..\langgraphTutorial\.venv\Scripts\python.exe -m pytest -q
+cd <path-to>\defuzeX_AgentBench
+python -m pytest -q
 ```
 
 ## 13. Certify the Adapted Agent
@@ -888,7 +888,7 @@ status = "adapting"
 Run only the newly adapted Agent through the complete DefuzeX flow:
 
 ```powershell
-cd C:\Song_startup\benchmark\defuzeX_AgentBench
+cd <path-to>\defuzeX_AgentBench
 python -m agentbench certify my-langgraph-agent
 ```
 
@@ -1237,7 +1237,7 @@ judge: pass
 Run it from the repository root:
 
 ```powershell
-..\langgraphTutorial\.venv\Scripts\python.exe -B `
+python -B `
   .\examples\smoke_email_container.py
 ```
 

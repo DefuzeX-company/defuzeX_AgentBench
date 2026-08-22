@@ -56,10 +56,11 @@ The SDK provides the benchmark protocol used by AgentBench: it parses benchmark
 requirements, creates DefuzeX Cases, drives each SDK input, records evidence,
 and submits completed runs for judging.
 
-Create and activate a virtual environment from the benchmark workspace:
+Create and activate a virtual environment from the parent workspace that
+contains this repository:
 
 ```powershell
-cd C:\Song_startup\benchmark
+cd <workspace-root>
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -80,16 +81,14 @@ not been cloned locally yet, clone it from the SDK `dev` branch
 `defuzeX_AgentBench`, then install it into the same `.venv`:
 
 ```powershell
-cd C:\Song_startup\benchmark
+cd <workspace-root>
 git clone --branch dev --single-branch https://github.com/DefuzeX-company/Defuze-SDK.git
 python -m pip install -e .\Defuze-SDK
 python -m pip install -e .\defuzeX_AgentBench
 ```
 
-The current local development environment is installed this way:
-`defuzex` is linked from `C:\Song_startup\benchmark\Defuze-SDK`, and
-`defuzex-agentbench` is linked from
-`C:\Song_startup\benchmark\defuzeX_AgentBench`.
+A typical source checkout has `Defuze-SDK` and `defuzeX_AgentBench` as sibling
+directories under the same parent workspace, both installed in editable mode.
 
 > [!NOTE]
 > PAT means Personal Access Token. If the internal DefuzeX SDK repository is
@@ -103,7 +102,7 @@ After installing AgentBench, start it from the benchmark workspace with the
 launcher script:
 
 ```powershell
-cd C:\Song_startup\benchmark
+cd <workspace-root>
 .\.venv\Scripts\Activate.ps1
 python .\run_agentbench.py
 ```
@@ -111,7 +110,7 @@ python .\run_agentbench.py
 You can also run the package directly from the AgentBench repository:
 
 ```powershell
-cd C:\Song_startup\benchmark\defuzeX_AgentBench
+cd <workspace-root>\defuzeX_AgentBench
 python -m agentbench
 ```
 

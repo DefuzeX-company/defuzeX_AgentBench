@@ -186,11 +186,10 @@ the top level:
 ```
 
 The public result contains the triage classification and normalized tool
-actions. From the workspace root, run:
+actions. From the AgentBench repository root, run:
 
 ```powershell
-.\langgraphTutorial\.venv\Scripts\python.exe -B `
-  .\test_agentbench\smoke_email_container.py
+python -m agentbench certify email-assistant
 ```
 
 `OPENAI_API_KEY` must be available in the launching terminal. The benchmark
