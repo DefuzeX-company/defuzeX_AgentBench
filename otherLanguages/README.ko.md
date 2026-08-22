@@ -1,8 +1,8 @@
-# DefuzeX AgentBehaviorBench (ABB)
+# AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBehaviorBench (ABB)"
+    alt="AgentBehaviorBench (ABB)"
     src="../figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -30,7 +30,7 @@
 
 ## 개요
 
-DefuzeX AgentBehaviorBench (ABB)는 대상 Agent를 호출하고, 그 출력과 실행 trace를 수집하며, 요청된 workflow를 올바르게 완료했는지 판단해야 하는 end-to-end 작업에서 AI Agent를 평가하기 위한 benchmark입니다.
+AgentBehaviorBench (ABB)는 대상 Agent를 호출하고, 그 출력과 실행 trace를 수집하며, 요청된 workflow를 올바르게 완료했는지 판단해야 하는 end-to-end 작업에서 AI Agent를 평가하기 위한 benchmark입니다.
 
 등록된 Agent와 benchmark Case가 주어지면, AgentBehaviorBench (ABB)는 신뢰할 수 있는 host harness를 통해 해당 Agent를 실행합니다. 이 harness는 framework-specific 또는 containerized Agent를 시작하고, credential-safe Model Gateway를 통해 model traffic을 routing하며, 각 SDK input과 Agent response를 append-only JSONL events로 기록하고, 완료된 run을 DefuzeX Judge에 제출할 수 있습니다.
 
@@ -56,11 +56,11 @@ registry.toml
 - `resources/agents`: 재현 가능한 benchmark agent fixtures.
 - `services/model-gateway`: Docker runs에서 model provider access를 위한 신뢰할 수 있는 proxy.
 
-![DefuzeX AgentBehaviorBench (ABB) framework](../figures/framework.png)
+![AgentBehaviorBench (ABB) framework](../figures/framework.png)
 
 ## 설정
 
-DefuzeX AgentBehaviorBench (ABB)에는 Python 3.10 이상과 DefuzeX Python SDK가 필요합니다. SDK는 AgentBehaviorBench (ABB)가 사용하는 benchmark protocol을 제공합니다. 즉 benchmark requirements를 parse하고, DefuzeX Cases를 만들고, 각 SDK input을 drive하며, evidence를 기록하고, 완료된 runs를 judging을 위해 제출합니다.
+AgentBehaviorBench (ABB)에는 Python 3.10 이상과 DefuzeX Python SDK가 필요합니다. SDK는 AgentBehaviorBench (ABB)가 사용하는 benchmark protocol을 제공합니다. 즉 benchmark requirements를 parse하고, DefuzeX Cases를 만들고, 각 SDK input을 drive하며, evidence를 기록하고, 완료된 runs를 judging을 위해 제출합니다.
 
 이 repository를 포함하는 parent workspace에서 virtual environment를 만들고 활성화합니다:
 

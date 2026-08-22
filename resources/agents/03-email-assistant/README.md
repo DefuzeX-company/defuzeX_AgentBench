@@ -164,7 +164,7 @@ python tests/test_notebooks.py
 pytest tests/test_notebooks.py -v
 ```
 
-## DefuzeX AgentBehaviorBench (ABB) Integration
+## AgentBehaviorBench (ABB) Integration
 
 AgentBehaviorBench (ABB) runs the basic `email_assistant` graph in a restricted Docker
 container. The container communicates over persistent JSONL stdin/stdout and

@@ -1,8 +1,8 @@
-# DefuzeX AgentBehaviorBench (ABB)
+# AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBehaviorBench (ABB)"
+    alt="AgentBehaviorBench (ABB)"
     src="../figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -30,7 +30,7 @@
 
 ## 概览
 
-DefuzeX AgentBehaviorBench (ABB) 是一个用于评估 AI Agent 的基准测试工具，面向需要调用目标 Agent、收集其输出和执行轨迹，并判断其是否正确完成指定工作流的端到端任务。
+AgentBehaviorBench (ABB) 是一个用于评估 AI Agent 的基准测试工具，面向需要调用目标 Agent、收集其输出和执行轨迹，并判断其是否正确完成指定工作流的端到端任务。
 
 给定一个已注册的 Agent 和一个 benchmark Case，AgentBehaviorBench (ABB) 会通过受信任的宿主 harness 运行该 Agent。该 harness 可以启动特定框架或容器化的 Agent，通过凭据安全的 Model Gateway 路由模型流量，将每个 SDK input 和 Agent response 记录为只追加的 JSONL 事件，并把完成的运行提交给 DefuzeX Judge。
 
@@ -56,11 +56,11 @@ registry.toml
 - `resources/agents`：可复现的 benchmark Agent fixture。
 - `services/model-gateway`：Docker 运行中用于模型 provider 访问的受信任代理。
 
-![DefuzeX AgentBehaviorBench (ABB) framework](../figures/framework.png)
+![AgentBehaviorBench (ABB) framework](../figures/framework.png)
 
 ## 安装
 
-DefuzeX AgentBehaviorBench (ABB) 需要 Python 3.10 或更高版本，以及 DefuzeX Python SDK。SDK 提供 AgentBehaviorBench (ABB) 使用的 benchmark protocol：解析 benchmark requirements、创建 DefuzeX Cases、驱动每个 SDK input、记录 evidence，并提交完成的 runs 进行 judging。
+AgentBehaviorBench (ABB) 需要 Python 3.10 或更高版本，以及 DefuzeX Python SDK。SDK 提供 AgentBehaviorBench (ABB) 使用的 benchmark protocol：解析 benchmark requirements、创建 DefuzeX Cases、驱动每个 SDK input、记录 evidence，并提交完成的 runs 进行 judging。
 
 在包含本仓库的父级 workspace 中创建并激活虚拟环境：
 

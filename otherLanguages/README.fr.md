@@ -1,8 +1,8 @@
-# DefuzeX AgentBehaviorBench (ABB)
+# AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBehaviorBench (ABB)"
+    alt="AgentBehaviorBench (ABB)"
     src="../figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -30,7 +30,7 @@
 
 ## Vue d'ensemble
 
-DefuzeX AgentBehaviorBench (ABB) est un benchmark destiné à évaluer des Agents IA sur des tâches de bout en bout qui exigent d'appeler un Agent cible, de collecter ses sorties et sa trace d'exécution, puis de juger s'il a correctement terminé le workflow demandé.
+AgentBehaviorBench (ABB) est un benchmark destiné à évaluer des Agents IA sur des tâches de bout en bout qui exigent d'appeler un Agent cible, de collecter ses sorties et sa trace d'exécution, puis de juger s'il a correctement terminé le workflow demandé.
 
 À partir d'un Agent enregistré et d'un Case de benchmark, AgentBehaviorBench (ABB) exécute l'Agent au moyen d'un harness hôte de confiance. Le harness peut lancer des Agents propres à un framework ou des Agents conteneurisés, router le trafic modèle via un Model Gateway qui protège les identifiants, enregistrer chaque input SDK et chaque response de l'Agent sous forme d'événements JSONL append-only, puis soumettre l'exécution terminée au DefuzeX Judge.
 
@@ -56,11 +56,11 @@ Le dépôt contient :
 - `resources/agents` : fixtures d'Agents de benchmark reproductibles.
 - `services/model-gateway` : proxy de confiance pour l'accès aux model providers pendant les exécutions Docker.
 
-![DefuzeX AgentBehaviorBench (ABB) framework](../figures/framework.png)
+![AgentBehaviorBench (ABB) framework](../figures/framework.png)
 
 ## Installation
 
-DefuzeX AgentBehaviorBench (ABB) requiert Python 3.10 ou une version ultérieure ainsi que le SDK Python DefuzeX. Le SDK fournit le benchmark protocol utilisé par AgentBehaviorBench (ABB) : il analyse les benchmark requirements, crée des DefuzeX Cases, pilote chaque input SDK, enregistre les preuves et soumet les exécutions terminées pour jugement.
+AgentBehaviorBench (ABB) requiert Python 3.10 ou une version ultérieure ainsi que le SDK Python DefuzeX. Le SDK fournit le benchmark protocol utilisé par AgentBehaviorBench (ABB) : il analyse les benchmark requirements, crée des DefuzeX Cases, pilote chaque input SDK, enregistre les preuves et soumet les exécutions terminées pour jugement.
 
 Créez et activez un environnement virtuel depuis le workspace parent qui contient ce dépôt :
 

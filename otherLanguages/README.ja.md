@@ -1,8 +1,8 @@
-# DefuzeX AgentBehaviorBench (ABB)
+# AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBehaviorBench (ABB)"
+    alt="AgentBehaviorBench (ABB)"
     src="../figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -30,7 +30,7 @@
 
 ## 概要
 
-DefuzeX AgentBehaviorBench (ABB) は、対象 Agent を呼び出し、その出力と実行トレースを収集し、要求されたワークフローを正しく完了したかを判定する必要があるエンドツーエンドのタスクで AI Agent を評価するためのベンチマークです。
+AgentBehaviorBench (ABB) は、対象 Agent を呼び出し、その出力と実行トレースを収集し、要求されたワークフローを正しく完了したかを判定する必要があるエンドツーエンドのタスクで AI Agent を評価するためのベンチマークです。
 
 登録済みの Agent と benchmark Case が与えられると、AgentBehaviorBench (ABB) は信頼されたホスト harness を通じてその Agent を実行します。この harness は、framework 固有またはコンテナ化された Agent を起動し、credential-safe な Model Gateway を通じてモデル通信をルーティングし、各 SDK input と Agent response を append-only の JSONL events として記録し、完了した run を DefuzeX Judge に送信できます。
 
@@ -56,11 +56,11 @@ registry.toml
 - `resources/agents`：再現可能な benchmark agent fixtures。
 - `services/model-gateway`：Docker runs で model provider access を扱う信頼された proxy。
 
-![DefuzeX AgentBehaviorBench (ABB) framework](../figures/framework.png)
+![AgentBehaviorBench (ABB) framework](../figures/framework.png)
 
 ## セットアップ
 
-DefuzeX AgentBehaviorBench (ABB) には Python 3.10 以降と DefuzeX Python SDK が必要です。SDK は AgentBehaviorBench (ABB) が使用する benchmark protocol を提供します。これにより、benchmark requirements の解析、DefuzeX Cases の作成、各 SDK input の駆動、evidence の記録、完了した runs の judging への送信が行われます。
+AgentBehaviorBench (ABB) には Python 3.10 以降と DefuzeX Python SDK が必要です。SDK は AgentBehaviorBench (ABB) が使用する benchmark protocol を提供します。これにより、benchmark requirements の解析、DefuzeX Cases の作成、各 SDK input の駆動、evidence の記録、完了した runs の judging への送信が行われます。
 
 このリポジトリを含む親 workspace から仮想環境を作成して有効化します：
 

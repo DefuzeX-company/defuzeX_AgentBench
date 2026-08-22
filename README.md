@@ -1,8 +1,8 @@
-# DefuzeX AgentBehaviorBench (ABB)
+# AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBehaviorBench (ABB)"
+    alt="AgentBehaviorBench (ABB)"
     src="figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -31,7 +31,7 @@
 
 ## Overview
 
-DefuzeX AgentBehaviorBench (ABB) is a benchmark for evaluating AI agents on end-to-end tasks
+AgentBehaviorBench (ABB) is a benchmark for evaluating AI agents on end-to-end tasks
 that require calling a target Agent, collecting its outputs and execution trace,
 and judging whether it completed the requested workflow correctly.
 
@@ -67,11 +67,11 @@ The repository includes:
 - `services/model-gateway`: trusted proxy for model provider access in Docker
   runs.
 
-![DefuzeX AgentBehaviorBench (ABB) framework](figures/framework.png)
+![AgentBehaviorBench (ABB) framework](figures/framework.png)
 
 ## Setup
 
-DefuzeX AgentBehaviorBench (ABB) requires Python 3.10 or later and the DefuzeX Python SDK.
+AgentBehaviorBench (ABB) requires Python 3.10 or later and the DefuzeX Python SDK.
 The SDK provides the benchmark protocol used by AgentBehaviorBench (ABB): it parses benchmark
 requirements, creates DefuzeX Cases, drives each SDK input, records evidence,
 and submits completed runs for judging.
