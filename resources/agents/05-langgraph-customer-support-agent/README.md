@@ -1,4 +1,4 @@
-# LangGraph Customer Support Agent for AgentBench
+# LangGraph Customer Support Agent for AgentBehaviorBench (ABB)
 
 This is a converted LangGraph customer support agent. It keeps the original ReAct workflow and support tools, but removes local model runtimes and real business-service network calls.
 
@@ -40,7 +40,7 @@ No Ollama, LMStudio, LangSmith, hosted search, hosted vector DB, CRM, order API,
 agent = ./src/support_agent/agent.py:graph
 ```
 
-AgentBench launches the persistent JSONL worker:
+AgentBehaviorBench (ABB) launches the persistent JSONL worker:
 
 ```text
 python -m support_agent.worker
@@ -61,7 +61,7 @@ For each input line, stdout emits exactly one JSON response:
 
 Graph and dependency diagnostics are redirected to stderr.
 
-## Expected AgentBench Task
+## Expected AgentBehaviorBench (ABB) Task
 
 ```text
 I'm really frustrated. Order #123456 arrived defective. Check my order, explain the return policy, start a return, and escalate if needed.
@@ -115,7 +115,7 @@ Run the JSONL worker failure-path check without a model key:
 echo '{"input":"hi"}' | docker run --rm -i -e LLM_PROVIDER=openai agentbench-langgraph-customer-support:local python -m support_agent.worker
 ```
 
-AgentBench does not pass the real provider key into this container. The trusted
+AgentBehaviorBench (ABB) does not pass the real provider key into this container. The trusted
 Model Gateway injects:
 
 ```text

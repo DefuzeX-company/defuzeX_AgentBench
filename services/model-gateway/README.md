@@ -1,6 +1,6 @@
 # DefuzeX Model Gateway
 
-This is the trusted model credential proxy used by AgentBench Docker runtimes.
+This is the trusted model credential proxy used by AgentBehaviorBench (ABB) Docker runtimes.
 It is intentionally packaged and built independently from the Host Harness.
 
 ## Responsibilities
@@ -19,7 +19,7 @@ frameworks, or depend on the DefuzeX SDK. Those are Host Harness concerns.
 docker build -t defuzex-agentbench/model-gateway:local .
 ```
 
-AgentBench builds this directory through `LocalGatewayImageProvider`. Released
+AgentBehaviorBench (ABB) builds this directory through `LocalGatewayImageProvider`. Released
 deployments can inject a prebuilt image through `DEFUZEX_MODEL_GATEWAY_IMAGE`.
 
 ## Protocol extensions

@@ -5,10 +5,10 @@ This adapter follows LangGraph's official application contract:
 - `langgraph.json` owns graph discovery through `graphs.<graph_id>`.
 - An entrypoint uses `file.py:attribute` and may expose a compiled graph,
   Functional API entrypoint, Pregel object, or zero-argument graph factory.
-- AgentBench checks behavior through `invoke()` instead of depending on a
+- AgentBehaviorBench (ABB) checks behavior through `invoke()` instead of depending on a
   concrete LangGraph implementation class.
 
-The AgentBench-specific `agent.toml` selects the graph and maps benchmark values:
+The ABB-specific `agent.toml` selects the graph and maps benchmark values:
 
 ```toml
 [adapter]

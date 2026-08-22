@@ -1,8 +1,8 @@
-# DefuzeX AgentBench
+# DefuzeX AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBench"
+    alt="DefuzeX AgentBehaviorBench (ABB)"
     src="../figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -26,15 +26,15 @@
 
 ## 最新动态
 
-- AgentBench 现在通过 DefuzeX SDK 的 `get_input()` / `submit()` 握手流程运行已注册的 LangGraph Agent。
+- AgentBehaviorBench (ABB) 现在通过 DefuzeX SDK 的 `get_input()` / `submit()` 握手流程运行已注册的 LangGraph Agent。
 
 ## 概览
 
-DefuzeX AgentBench 是一个用于评估 AI Agent 的基准测试工具，面向需要调用目标 Agent、收集其输出和执行轨迹，并判断其是否正确完成指定工作流的端到端任务。
+DefuzeX AgentBehaviorBench (ABB) 是一个用于评估 AI Agent 的基准测试工具，面向需要调用目标 Agent、收集其输出和执行轨迹，并判断其是否正确完成指定工作流的端到端任务。
 
-给定一个已注册的 Agent 和一个 benchmark Case，AgentBench 会通过受信任的宿主 harness 运行该 Agent。该 harness 可以启动特定框架或容器化的 Agent，通过凭据安全的 Model Gateway 路由模型流量，将每个 SDK input 和 Agent response 记录为只追加的 JSONL 事件，并把完成的运行提交给 DefuzeX Judge。
+给定一个已注册的 Agent 和一个 benchmark Case，AgentBehaviorBench (ABB) 会通过受信任的宿主 harness 运行该 Agent。该 harness 可以启动特定框架或容器化的 Agent，通过凭据安全的 Model Gateway 路由模型流量，将每个 SDK input 和 Agent response 记录为只追加的 JSONL 事件，并把完成的运行提交给 DefuzeX Judge。
 
-AgentBench 旨在让 Agent 评估具备可复现性。Agent 在 registry 中声明，通过 LangGraph 等框架 adapter 接入，从 `adapting` 认证到 `ready`，并且只有在认证成功后才会进入默认 benchmark 运行。
+AgentBehaviorBench (ABB) 旨在让 Agent 评估具备可复现性。Agent 在 registry 中声明，通过 LangGraph 等框架 adapter 接入，从 `adapting` 认证到 `ready`，并且只有在认证成功后才会进入默认 benchmark 运行。
 
 当前执行流程如下：
 
@@ -56,11 +56,11 @@ registry.toml
 - `resources/agents`：可复现的 benchmark Agent fixture。
 - `services/model-gateway`：Docker 运行中用于模型 provider 访问的受信任代理。
 
-![DefuzeX AgentBench framework](../figures/framework.png)
+![DefuzeX AgentBehaviorBench (ABB) framework](../figures/framework.png)
 
 ## 安装
 
-DefuzeX AgentBench 需要 Python 3.10 或更高版本，以及 DefuzeX Python SDK。SDK 提供 AgentBench 使用的 benchmark protocol：解析 benchmark requirements、创建 DefuzeX Cases、驱动每个 SDK input、记录 evidence，并提交完成的 runs 进行 judging。
+DefuzeX AgentBehaviorBench (ABB) 需要 Python 3.10 或更高版本，以及 DefuzeX Python SDK。SDK 提供 AgentBehaviorBench (ABB) 使用的 benchmark protocol：解析 benchmark requirements、创建 DefuzeX Cases、驱动每个 SDK input、记录 evidence，并提交完成的 runs 进行 judging。
 
 在包含本仓库的父级 workspace 中创建并激活虚拟环境：
 
@@ -71,7 +71,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-以 editable mode 安装 AgentBench：
+以 editable mode 安装 AgentBehaviorBench (ABB)：
 
 ```powershell
 python -m pip install -e .\defuzeX_AgentBench
@@ -95,7 +95,7 @@ python -m pip install -e .\defuzeX_AgentBench
 
 ## 使用
 
-安装 AgentBench 后，从 benchmark workspace 使用 launcher script 启动：
+安装 AgentBehaviorBench (ABB) 后，从 benchmark workspace 使用 launcher script 启动：
 
 ```powershell
 cd <workspace-root>
@@ -103,7 +103,7 @@ cd <workspace-root>
 python .\run_agentbench.py
 ```
 
-也可以直接从 AgentBench 仓库运行 package：
+也可以直接从 AgentBehaviorBench (ABB) 仓库运行 package：
 
 ```powershell
 cd <workspace-root>\defuzeX_AgentBench
@@ -116,7 +116,7 @@ python -m agentbench
 python -m agentbench --output results\result.json
 ```
 
-不传 `--output` 时，AgentBench 会在终端中运行，并且不会创建 JSONL result artifact。传入 `--output` 时，AgentBench 会写入一个只追加的 JSONL result file，并启动本地 viewer，便于你在 benchmark 运行期间刷新和检查 events。
+不传 `--output` 时，AgentBehaviorBench (ABB) 会在终端中运行，并且不会创建 JSONL result artifact。传入 `--output` 时，AgentBehaviorBench (ABB) 会写入一个只追加的 JSONL result file，并启动本地 viewer，便于你在 benchmark 运行期间刷新和检查 events。
 
 使用官方 Case 或 Judge providers 时，请设置 DefuzeX API key：
 
@@ -136,7 +136,7 @@ python -m pytest
 
 如果你想把自己的 Agent 添加到 benchmark，请让 agent 阅读 [docs/How To Add Agent.md](../docs/How%20To%20Add%20Agent.md)，并按照其中记录的 onboarding flow 操作。
 
-AgentBench 提供了把外部 Agent project 转换为可重复 benchmark target 所需的组件：基于 registry 的 discovery、framework adapters、Docker runtime support、通过 Model Gateway 路由模型凭据、只追加 result artifacts、本地 result viewing，以及从 `adapting` 到 `ready` 的 certification。这让你可以用同一组 DefuzeX Cases 一致地比较不同 Agent，同时保持 runtime behavior、outputs 和 judgment evidence 可检查。
+AgentBehaviorBench (ABB) 提供了把外部 Agent project 转换为可重复 benchmark target 所需的组件：基于 registry 的 discovery、framework adapters、Docker runtime support、通过 Model Gateway 路由模型凭据、只追加 result artifacts、本地 result viewing，以及从 `adapting` 到 `ready` 的 certification。这让你可以用同一组 DefuzeX Cases 一致地比较不同 Agent，同时保持 runtime behavior、outputs 和 judgment evidence 可检查。
 
 ## 引用和许可证
 

@@ -164,9 +164,9 @@ python tests/test_notebooks.py
 pytest tests/test_notebooks.py -v
 ```
 
-## DefuzeX AgentBench Integration
+## DefuzeX AgentBehaviorBench (ABB) Integration
 
-AgentBench runs the basic `email_assistant` graph in a restricted Docker
+AgentBehaviorBench (ABB) runs the basic `email_assistant` graph in a restricted Docker
 container. The container communicates over persistent JSONL stdin/stdout and
 uses the trusted Model Gateway for OpenAI requests; the real `OPENAI_API_KEY`
 is never injected into the Agent container.
@@ -186,7 +186,7 @@ the top level:
 ```
 
 The public result contains the triage classification and normalized tool
-actions. From the AgentBench repository root, run:
+actions. From the AgentBehaviorBench (ABB) repository root, run:
 
 ```powershell
 python -m agentbench certify email-assistant

@@ -1,8 +1,8 @@
-# DefuzeX AgentBench
+# DefuzeX AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBench"
+    alt="DefuzeX AgentBehaviorBench (ABB)"
     src="figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -26,22 +26,22 @@
 
 ## News
 
-- AgentBench now runs registered LangGraph agents through the DefuzeX SDK
+- AgentBehaviorBench (ABB) now runs registered LangGraph agents through the DefuzeX SDK
   `get_input()` / `submit()` handshake.
 
 ## Overview
 
-DefuzeX AgentBench is a benchmark for evaluating AI agents on end-to-end tasks
+DefuzeX AgentBehaviorBench (ABB) is a benchmark for evaluating AI agents on end-to-end tasks
 that require calling a target Agent, collecting its outputs and execution trace,
 and judging whether it completed the requested workflow correctly.
 
-Given a registered Agent and a benchmark Case, AgentBench runs the Agent through
+Given a registered Agent and a benchmark Case, AgentBehaviorBench (ABB) runs the Agent through
 a trusted host harness. The harness can launch framework-specific or
 containerized Agents, route model traffic through a credential-safe Model
 Gateway, record each SDK input and Agent response as append-only JSONL events,
 and submit the completed run to the DefuzeX Judge.
 
-AgentBench is designed to make Agent evaluation reproducible. Agents are
+AgentBehaviorBench (ABB) is designed to make Agent evaluation reproducible. Agents are
 declared in a registry, adapted through framework adapters such as LangGraph,
 certified from `adapting` to `ready`, and included in default benchmark runs only
 after certification succeeds.
@@ -67,12 +67,12 @@ The repository includes:
 - `services/model-gateway`: trusted proxy for model provider access in Docker
   runs.
 
-![DefuzeX AgentBench framework](figures/framework.png)
+![DefuzeX AgentBehaviorBench (ABB) framework](figures/framework.png)
 
 ## Setup
 
-DefuzeX AgentBench requires Python 3.10 or later and the DefuzeX Python SDK.
-The SDK provides the benchmark protocol used by AgentBench: it parses benchmark
+DefuzeX AgentBehaviorBench (ABB) requires Python 3.10 or later and the DefuzeX Python SDK.
+The SDK provides the benchmark protocol used by AgentBehaviorBench (ABB): it parses benchmark
 requirements, creates DefuzeX Cases, drives each SDK input, records evidence,
 and submits completed runs for judging.
 
@@ -86,7 +86,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-Install AgentBench in editable mode:
+Install AgentBehaviorBench (ABB) in editable mode:
 
 ```powershell
 python -m pip install -e .\defuzeX_AgentBench
@@ -118,7 +118,7 @@ directories under the same parent workspace, both installed in editable mode.
 
 ## Usage
 
-After installing AgentBench, start it from the benchmark workspace with the
+After installing AgentBehaviorBench (ABB), start it from the benchmark workspace with the
 launcher script:
 
 ```powershell
@@ -127,7 +127,7 @@ cd <workspace-root>
 python .\run_agentbench.py
 ```
 
-You can also run the package directly from the AgentBench repository:
+You can also run the package directly from the AgentBehaviorBench (ABB) repository:
 
 ```powershell
 cd <workspace-root>\defuzeX_AgentBench
@@ -141,8 +141,8 @@ an output path:
 python -m agentbench --output results\result.json
 ```
 
-Without `--output`, AgentBench runs in the terminal and does not create a JSONL
-result artifact. With `--output`, AgentBench writes an append-only JSONL result
+Without `--output`, AgentBehaviorBench (ABB) runs in the terminal and does not create a JSONL
+result artifact. With `--output`, AgentBehaviorBench (ABB) writes an append-only JSONL result
 file and starts the local viewer so you can refresh and inspect events while the
 benchmark is running.
 
@@ -167,7 +167,7 @@ If you want to add your own Agent to the benchmark, ask an agent to read
 [docs/How To Add Agent.md](docs/How%20To%20Add%20Agent.md) and follow the
 onboarding flow documented there.
 
-AgentBench provides the pieces needed to turn an external Agent project into a
+AgentBehaviorBench (ABB) provides the pieces needed to turn an external Agent project into a
 repeatable benchmark target: registry-based discovery, framework adapters,
 Docker runtime support, model credential routing through the Model Gateway,
 append-only result artifacts, local result viewing, and certification from

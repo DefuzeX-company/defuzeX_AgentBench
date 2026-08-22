@@ -1,6 +1,6 @@
 # SWE-agent Local Bug-Fix Benchmark
 
-This AgentBench adapter vendors the SWE-agent runtime and exposes one selected
+This AgentBehaviorBench (ABB) adapter vendors the SWE-agent runtime and exposes one selected
 LangGraph graph through a persistent JSONL worker.
 
 The benchmark task prepares a deterministic local Python repository with a
@@ -9,7 +9,7 @@ the repository, edit source code, run the validation command, and submit the
 resulting patch. The adapter keeps SWE-agent's normal action/observation loop
 through `DefaultAgent.run(...)`.
 
-## AgentBench Runtime
+## AgentBehaviorBench (ABB) Runtime
 
 - Graph: `swe_agent_benchmark` in `src/swe_agent_benchmark/graph.py`
 - Worker: `python -m swe_agent_benchmark.worker`
@@ -71,5 +71,5 @@ From this directory:
 docker build -t agentbench-swe-agent .
 ```
 
-AgentBench should launch the worker through `agent.toml`; direct local Python
+AgentBehaviorBench (ABB) should launch the worker through `agent.toml`; direct local Python
 execution requires Python 3.11 and the package dependencies.

@@ -1,8 +1,8 @@
-# DefuzeX AgentBench
+# DefuzeX AgentBehaviorBench (ABB)
 
 <p align="center">
   <img
-    alt="DefuzeX AgentBench"
+    alt="DefuzeX AgentBehaviorBench (ABB)"
     src="../figures/title.png"
     width="720"
     style="border-radius: 24px;"
@@ -26,15 +26,15 @@
 
 ## Actualités
 
-- AgentBench exécute maintenant les Agents LangGraph enregistrés au moyen du protocole de poignée de main `get_input()` / `submit()` du SDK DefuzeX.
+- AgentBehaviorBench (ABB) exécute maintenant les Agents LangGraph enregistrés au moyen du protocole de poignée de main `get_input()` / `submit()` du SDK DefuzeX.
 
 ## Vue d'ensemble
 
-DefuzeX AgentBench est un benchmark destiné à évaluer des Agents IA sur des tâches de bout en bout qui exigent d'appeler un Agent cible, de collecter ses sorties et sa trace d'exécution, puis de juger s'il a correctement terminé le workflow demandé.
+DefuzeX AgentBehaviorBench (ABB) est un benchmark destiné à évaluer des Agents IA sur des tâches de bout en bout qui exigent d'appeler un Agent cible, de collecter ses sorties et sa trace d'exécution, puis de juger s'il a correctement terminé le workflow demandé.
 
-À partir d'un Agent enregistré et d'un Case de benchmark, AgentBench exécute l'Agent au moyen d'un harness hôte de confiance. Le harness peut lancer des Agents propres à un framework ou des Agents conteneurisés, router le trafic modèle via un Model Gateway qui protège les identifiants, enregistrer chaque input SDK et chaque response de l'Agent sous forme d'événements JSONL append-only, puis soumettre l'exécution terminée au DefuzeX Judge.
+À partir d'un Agent enregistré et d'un Case de benchmark, AgentBehaviorBench (ABB) exécute l'Agent au moyen d'un harness hôte de confiance. Le harness peut lancer des Agents propres à un framework ou des Agents conteneurisés, router le trafic modèle via un Model Gateway qui protège les identifiants, enregistrer chaque input SDK et chaque response de l'Agent sous forme d'événements JSONL append-only, puis soumettre l'exécution terminée au DefuzeX Judge.
 
-AgentBench est conçu pour rendre l'évaluation des Agents reproductible. Les Agents sont déclarés dans un registry, adaptés via des framework adapters tels que LangGraph, certifiés de `adapting` à `ready`, puis inclus dans les exécutions benchmark par défaut uniquement après une certification réussie.
+AgentBehaviorBench (ABB) est conçu pour rendre l'évaluation des Agents reproductible. Les Agents sont déclarés dans un registry, adaptés via des framework adapters tels que LangGraph, certifiés de `adapting` à `ready`, puis inclus dans les exécutions benchmark par défaut uniquement après une certification réussie.
 
 Le flux d'exécution actuel est :
 
@@ -56,11 +56,11 @@ Le dépôt contient :
 - `resources/agents` : fixtures d'Agents de benchmark reproductibles.
 - `services/model-gateway` : proxy de confiance pour l'accès aux model providers pendant les exécutions Docker.
 
-![DefuzeX AgentBench framework](../figures/framework.png)
+![DefuzeX AgentBehaviorBench (ABB) framework](../figures/framework.png)
 
 ## Installation
 
-DefuzeX AgentBench requiert Python 3.10 ou une version ultérieure ainsi que le SDK Python DefuzeX. Le SDK fournit le benchmark protocol utilisé par AgentBench : il analyse les benchmark requirements, crée des DefuzeX Cases, pilote chaque input SDK, enregistre les preuves et soumet les exécutions terminées pour jugement.
+DefuzeX AgentBehaviorBench (ABB) requiert Python 3.10 ou une version ultérieure ainsi que le SDK Python DefuzeX. Le SDK fournit le benchmark protocol utilisé par AgentBehaviorBench (ABB) : il analyse les benchmark requirements, crée des DefuzeX Cases, pilote chaque input SDK, enregistre les preuves et soumet les exécutions terminées pour jugement.
 
 Créez et activez un environnement virtuel depuis le workspace parent qui contient ce dépôt :
 
@@ -71,7 +71,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-Installez AgentBench en mode editable :
+Installez AgentBehaviorBench (ABB) en mode editable :
 
 ```powershell
 python -m pip install -e .\defuzeX_AgentBench
@@ -95,7 +95,7 @@ Un checkout source typique place `Defuze-SDK` et `defuzeX_AgentBench` comme rép
 
 ## Utilisation
 
-Après avoir installé AgentBench, lancez-le depuis le benchmark workspace avec le launcher script :
+Après avoir installé AgentBehaviorBench (ABB), lancez-le depuis le benchmark workspace avec le launcher script :
 
 ```powershell
 cd <workspace-root>
@@ -103,7 +103,7 @@ cd <workspace-root>
 python .\run_agentbench.py
 ```
 
-Vous pouvez aussi exécuter le package directement depuis le dépôt AgentBench :
+Vous pouvez aussi exécuter le package directement depuis le dépôt AgentBehaviorBench (ABB) :
 
 ```powershell
 cd <workspace-root>\defuzeX_AgentBench
@@ -116,7 +116,7 @@ Pour enregistrer une exécution et inspecter les événements benchmark en direc
 python -m agentbench --output results\result.json
 ```
 
-Sans `--output`, AgentBench s'exécute dans le terminal et ne crée pas d'artefact de résultat JSONL. Avec `--output`, AgentBench écrit un fichier de résultat JSONL append-only et démarre le viewer local afin que vous puissiez actualiser et inspecter les événements pendant l'exécution du benchmark.
+Sans `--output`, AgentBehaviorBench (ABB) s'exécute dans le terminal et ne crée pas d'artefact de résultat JSONL. Avec `--output`, AgentBehaviorBench (ABB) écrit un fichier de résultat JSONL append-only et démarre le viewer local afin que vous puissiez actualiser et inspecter les événements pendant l'exécution du benchmark.
 
 Définissez une clé API DefuzeX lorsque vous utilisez les Case ou Judge providers officiels :
 
@@ -136,7 +136,7 @@ Pour plus d'instructions destinées aux Agents, commencez par [AGENTS.md](../AGE
 
 Si vous voulez ajouter votre propre Agent au benchmark, demandez à un agent de lire [docs/How To Add Agent.md](../docs/How%20To%20Add%20Agent.md) et de suivre le flux d'onboarding qui y est documenté.
 
-AgentBench fournit les éléments nécessaires pour transformer un projet d'Agent externe en cible de benchmark répétable : discovery fondée sur le registry, framework adapters, support du Docker runtime, routage des identifiants modèle via le Model Gateway, result artifacts append-only, visualisation locale des résultats et certification de `adapting` à `ready`. Cela vous donne une manière cohérente de comparer des Agents sur les mêmes DefuzeX Cases tout en gardant le runtime behavior, les outputs et les judgment evidence inspectables.
+AgentBehaviorBench (ABB) fournit les éléments nécessaires pour transformer un projet d'Agent externe en cible de benchmark répétable : discovery fondée sur le registry, framework adapters, support du Docker runtime, routage des identifiants modèle via le Model Gateway, result artifacts append-only, visualisation locale des résultats et certification de `adapting` à `ready`. Cela vous donne une manière cohérente de comparer des Agents sur les mêmes DefuzeX Cases tout en gardant le runtime behavior, les outputs et les judgment evidence inspectables.
 
 ## Citation et licence
 
